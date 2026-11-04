@@ -1,0 +1,7 @@
+TEAM_ID=
+
+PRODUCT_NAME=Arena-or-Classroom-Scout
+PRODUCT_BUNDLE_IDENTIFIER=org.example.arena_or_classroom_scout.Arena-or-Classroom-Scout$(TEAM_ID)
+
+CURRENT_PROJECT_VERSION=1
+MARKETING_VERSION=1.0
