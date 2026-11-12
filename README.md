@@ -1,6 +1,6 @@
 This is a Kotlin Multiplatform project targeting Android, iOS, Web, Desktop (JVM).
 
-[![Download APK](https://shields.io)](github.com/paulAngelo-ws/StageCall/releases/latest)
+[![Download APK](https://img.shields.io/badge/Download-APK-brightgreen?style=for-the-badge&logo=android)](https://github.com/paulAngelo-ws/StageCall/releases/latest)
 
 
 * [/iosApp](./iosApp/iosApp) contains an iOS application. Even if you’re sharing your UI with Compose Multiplatform,
