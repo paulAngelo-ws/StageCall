@@ -19,11 +19,20 @@ import com.weissev.stagecall.components.TopHeader
 
 //Screen Imports:
 import com.weissev.stagecall.screens.PublicFeed
-
+import com.weissev.stagecall.screens.DirectoryScreen
+import com.weissev.stagecall.screens.MyOrganizationsScreen
+import com.weissev.stagecall.screens.OrgDetailScreen
+import com.weissev.stagecall.screens.Organization
+import com.weissev.stagecall.screens.ubSoitOrganizations
 @Composable
 @Preview
 fun App() {
     var selectedTab by remember { mutableStateOf(0) } // MutableState, to know what tab the user is in, default 1 (Feed Page)
+
+    var selectedOrgForDetails by remember { mutableStateOf<Organization?>(null) }
+    var showMyOrganizations by remember { mutableStateOf(false) }
+    var bookmarkedOrgIds by remember { mutableStateOf(setOf("1")) }
+    var appliedOrgIds by remember { mutableStateOf(setOf("3")) }
 
     Scaffold(
         topBar = {
@@ -38,6 +47,9 @@ fun App() {
                 selectedTab = selectedTab,
                 onTabSelected = { newTab -> // when clicked it will pass the value of the tab we are in/going to selectedtab value
                     selectedTab = newTab
+
+                    selectedOrgForDetails = null
+                    showMyOrganizations = false
                 }
             )
         }
@@ -49,6 +61,64 @@ fun App() {
         ) {
             when (selectedTab) {
                 0 -> PublicFeed()
+                1 -> {
+                    when {
+                        selectedOrgForDetails != null -> {
+                            val currentOrg = selectedOrgForDetails!!
+                            OrgDetailScreen(
+                                org = currentOrg,
+                                isBookmarked = currentOrg.id in bookmarkedOrgIds,
+                                hasApplied = currentOrg.id in appliedOrgIds,
+                                onToggleBookmark = { orgId ->
+                                    bookmarkedOrgIds = if (orgId in bookmarkedOrgIds) {
+                                        bookmarkedOrgIds - orgId
+                                    } else {
+                                        bookmarkedOrgIds + orgId
+                                    }
+                                },
+                                onApplyClick = { org ->
+                                    appliedOrgIds = appliedOrgIds + org.id
+                                },
+                                onBackClick = {
+                                    selectedOrgForDetails = null
+                                }
+                            )
+                        }
+
+                        showMyOrganizations -> {
+                            MyOrganizationsScreen(
+                                allOrganizations = ubSoitOrganizations,
+                                bookmarkedIds = bookmarkedOrgIds,
+                                appliedOrgIds = appliedOrgIds,
+                                onOpenOrgClick = { org ->
+                                    selectedOrgForDetails = org
+                                },
+                                onBackClick = {
+                                    showMyOrganizations = false
+                                }
+                            )
+                        }
+
+                        else -> {
+                            DirectoryScreen(
+                                bookmarkedIds = bookmarkedOrgIds,
+                                onToggleBookmark = { orgId ->
+                                    bookmarkedOrgIds = if (orgId in bookmarkedOrgIds) {
+                                        bookmarkedOrgIds - orgId
+                                    } else {
+                                        bookmarkedOrgIds + orgId
+                                    }
+                                },
+                                onBookmarkBannerClick = {
+                                    showMyOrganizations = true
+                                },
+                                onViewOrgClick = { org ->
+                                    selectedOrgForDetails = org
+                                }
+                            )
+                        }
+                    }
+                }
             }
         }
     }

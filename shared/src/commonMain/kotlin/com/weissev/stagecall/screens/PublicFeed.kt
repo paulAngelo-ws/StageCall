@@ -193,10 +193,10 @@ fun PublicFeed() {
     var selectedCategory by remember { mutableStateOf("All") }
     val categories = listOf("All", "Recruitment", "Events", "Announcements") //Filter Buttons
 
-    val samplePosts = listOf( // Dummy Post for Now, no database yet, for testing only
+    val samplePosts = listOf(
         FeedPost(
             id = "1",
-            orgName = "Google Developer Groups",
+            orgName = "Google Developer Groups - UB",
             timeAgo = "2h ago",
             title = "Build with us this semester.",
             content = "Join the web, mobile or AI team. All skill levels welcome — curiosity comes first.",
@@ -205,12 +205,39 @@ fun PublicFeed() {
         ),
         FeedPost(
             id = "2",
-            orgName = "Cybersecurity Society",
+            orgName = "UB Cybersecurity Society",
             timeAgo = "5h ago",
             title = "Intro to Capture the Flag.",
             content = "Learn how to approach CTF challenges, practice binary exploitation, and team up.",
             statusBadge = "Event Upcoming",
             category = "Events"
+        ),
+        FeedPost(
+            id = "3",
+            orgName = "SOIT Student Council",
+            timeAgo = "1d ago",
+            title = "IT Week 2026 Registration Open",
+            content = "Register now for the annual programming competition, UI/UX design contest, and e-sports tournament. Check out the mechanics!",
+            statusBadge = "Registration Open",
+            category = "Events"
+        ),
+        FeedPost(
+            id = "4",
+            orgName = "UB Coders Guild",
+            timeAgo = "2d ago",
+            title = "Peer Tutoring & Code Review Sessions",
+            content = "Struggling with Data Structures or Object-Oriented Programming? Drop by the IT lab every Tuesday afternoon for assistance.",
+            statusBadge = "Recruitment Open",
+            category = "Recruitment"
+        ),
+        FeedPost(
+            id = "5",
+            orgName = "SOIT Dean's Office",
+            timeAgo = "3d ago",
+            title = "Midterm Examination Schedule Released",
+            content = "Please check your student portals for the official room assignments and exam schedules for the upcoming midterms.",
+            statusBadge = "Important",
+            category = "Announcements"
         )
     )
 
