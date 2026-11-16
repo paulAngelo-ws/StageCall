@@ -9,10 +9,7 @@ plugins {
 }
 
 kotlin {
-    listOf(
-        iosArm64(),
-        iosSimulatorArm64()
-    ).forEach { iosTarget ->
+    listOf(iosArm64(), iosSimulatorArm64()).forEach { iosTarget ->
         iosTarget.binaries.framework {
             baseName = "Shared"
             isStatic = true
@@ -32,20 +29,11 @@ kotlin {
         namespace = "com.weissev.stagecall.shared"
         compileSdk = libs.versions.android.compileSdk.get().toInt()
         minSdk = libs.versions.android.minSdk.get().toInt()
-        compilerOptions {
-            jvmTarget = JvmTarget.JVM_11
-        }
-        androidResources {
-            enable = true
-        }
-        withHostTest {
-            isIncludeAndroidResources = true
-        }
-        withDeviceTestBuilder {
-            sourceSetTreeName = "test"
-        }.configure {
-            instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        }
+        compilerOptions { jvmTarget = JvmTarget.JVM_11 }
+        androidResources { enable = true }
+        withHostTest { isIncludeAndroidResources = true }
+        withDeviceTestBuilder { sourceSetTreeName = "test" }
+            .configure { instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner" }
     }
     sourceSets {
         androidMain.dependencies {
@@ -64,18 +52,10 @@ kotlin {
 
             implementation(compose.materialIconsExtended)
         }
-        commonTest.dependencies {
-            implementation(libs.kotlin.test)
-        }
-        jsMain.dependencies {
-            implementation(libs.wrappers.browser)
-        }
-        getByName("androidDeviceTest").dependencies {
-            implementation(libs.androidx.testRunner)
-        }
+        commonTest.dependencies { implementation(libs.kotlin.test) }
+        jsMain.dependencies { implementation(libs.wrappers.browser) }
+        getByName("androidDeviceTest").dependencies { implementation(libs.androidx.testRunner) }
     }
 }
 
-dependencies {
-    androidRuntimeClasspath(libs.compose.uiTooling)
-}
+dependencies { androidRuntimeClasspath(libs.compose.uiTooling) }

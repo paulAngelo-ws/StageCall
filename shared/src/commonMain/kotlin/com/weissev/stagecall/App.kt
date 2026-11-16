@@ -1,125 +1,255 @@
 package com.weissev.stagecall
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.tooling.preview.Preview
-
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.foundation.layout.Box
-
-//Component Imports:
+import androidx.compose.ui.unit.dp
 import com.weissev.stagecall.components.NavigationBar
+import com.weissev.stagecall.components.StageCallTheme
 import com.weissev.stagecall.components.TopHeader
+import com.weissev.stagecall.data.StageCallRepository
+import com.weissev.stagecall.screens.ApplicationPage
+import com.weissev.stagecall.screens.ApplicationsPage
+import com.weissev.stagecall.screens.ApplyPage
+import com.weissev.stagecall.screens.DirectoryPage
+import com.weissev.stagecall.screens.FeedPage
+import com.weissev.stagecall.screens.MembersPage
+import com.weissev.stagecall.screens.OfficerPage
+import com.weissev.stagecall.screens.OrganizationPage
+import com.weissev.stagecall.screens.ProfilePage
+import com.weissev.stagecall.screens.PublishPage
+import com.weissev.stagecall.screens.ReviewPage
+import com.weissev.stagecall.screens.NotificationsPage
 
-//Screen Imports:
-import com.weissev.stagecall.screens.PublicFeed
-import com.weissev.stagecall.screens.DirectoryScreen
-import com.weissev.stagecall.screens.MyOrganizationsScreen
-import com.weissev.stagecall.screens.OrgDetailScreen
-import com.weissev.stagecall.screens.Organization
-import com.weissev.stagecall.screens.ubSoitOrganizations
+// Named pages prevent spelling mistakes when navigating between screens.
+private enum class Screen {
+    Main,
+    Organization,
+    Apply,
+    Status,
+    Officer,
+    Review,
+    Members,
+    Publish,
+    Notifications,
+}
+
+private data class NotificationOrigin(
+    val page: Screen = Screen.Main,
+    val organizationId: String = "1",
+    val postId: Int? = null,
+    val applicationId: Int = 1,
+)
+
+/** One shared entry point for Android, iOS, desktop and web. */
 @Composable
-@Preview
 fun App() {
-    var selectedTab by remember { mutableStateOf(0) } // MutableState, to know what tab the user is in, default 1 (Feed Page)
+    // remember keeps this session data when Compose redraws the screen.
+    val repository = remember { StageCallRepository() }
+    var selectedTab by remember { mutableStateOf(0) }
+    var page by remember { mutableStateOf(Screen.Main) }
+    var organizationId by remember { mutableStateOf("1") }
+    var organizationPostId by remember { mutableStateOf<Int?>(null) }
+    var applicationId by remember { mutableStateOf(1) }
+    var dialog by remember { mutableStateOf<String?>(null) }
+    var notificationOrigin by remember { mutableStateOf(NotificationOrigin()) }
+    var notificationDetailOpen by remember { mutableStateOf(false) }
+    fun openOrganization(id: String) {
+        organizationId = id
+        organizationPostId = null
+        page = Screen.Organization
+    }
 
-    var selectedOrgForDetails by remember { mutableStateOf<Organization?>(null) }
-    var showMyOrganizations by remember { mutableStateOf(false) }
-    var bookmarkedOrgIds by remember { mutableStateOf(setOf("1")) }
-    var appliedOrgIds by remember { mutableStateOf(setOf("3")) }
-
-    Scaffold(
-        topBar = {
-            TopHeader(
-                onNotificationClick = {
-                    println("TopHeader clicked") // Idk what The Notification Does for Now, js print stuff
-                }
-            )
-        },
-        bottomBar = {
-            NavigationBar(
-                selectedTab = selectedTab,
-                onTabSelected = { newTab -> // when clicked it will pass the value of the tab we are in/going to selectedtab value
-                    selectedTab = newTab
-
-                    selectedOrgForDetails = null
-                    showMyOrganizations = false
-                }
-            )
+    fun goBack() {
+        if (page == Screen.Notifications) {
+            organizationId = notificationOrigin.organizationId
+            organizationPostId = notificationOrigin.postId
+            applicationId = notificationOrigin.applicationId
+            page = notificationOrigin.page
+            notificationDetailOpen = false
+            return
         }
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            when (selectedTab) {
-                0 -> PublicFeed()
-                1 -> {
-                    when {
-                        selectedOrgForDetails != null -> {
-                            val currentOrg = selectedOrgForDetails!!
-                            OrgDetailScreen(
-                                org = currentOrg,
-                                isBookmarked = currentOrg.id in bookmarkedOrgIds,
-                                hasApplied = currentOrg.id in appliedOrgIds,
-                                onToggleBookmark = { orgId ->
-                                    bookmarkedOrgIds = if (orgId in bookmarkedOrgIds) {
-                                        bookmarkedOrgIds - orgId
+        if (notificationDetailOpen && (page == Screen.Organization || page == Screen.Status)) {
+            page = Screen.Notifications
+            notificationDetailOpen = false
+            return
+        }
+        page =
+            when (page) {
+                Screen.Review,
+                Screen.Publish,
+                Screen.Members -> Screen.Officer
+                Screen.Apply -> Screen.Organization
+                else -> Screen.Main
+            }
+    }
+
+    StageCallTheme {
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surfaceVariant) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+                Scaffold(
+                    Modifier.widthIn(max = 640.dp).fillMaxSize(),
+                    containerColor = MaterialTheme.colorScheme.background,
+                    topBar = {
+                        Column(Modifier.statusBarsPadding()) {
+                            if (page != Screen.Main) {
+                                TextButton(onClick = { goBack() }) { Text("Back") }
+                            }
+                            TopHeader(unreadCount = repository.unreadNotificationCount) {
+                                if (page != Screen.Notifications && !notificationDetailOpen) {
+                                    notificationOrigin = NotificationOrigin(page, organizationId, organizationPostId, applicationId)
+                                }
+                                notificationDetailOpen = false
+                                page = Screen.Notifications
+                            }
+                            HorizontalDivider()
+                        }
+                    },
+                    bottomBar = {
+                        Column {
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                            NavigationBar(selectedTab) {
+                                selectedTab = it
+                                page = Screen.Main
+                                notificationDetailOpen = false
+                            }
+                        }
+                    },
+                ) { padding ->
+                    Box(Modifier.padding(padding)) {
+                        when (page) {
+                            Screen.Notifications -> NotificationsPage(
+                                repository = repository,
+                                onOpenNotification = { notification ->
+                                    notificationDetailOpen = true
+                                    if (notification.applicationId != null) {
+                                        applicationId = notification.applicationId
+                                        page = Screen.Status
                                     } else {
-                                        bookmarkedOrgIds + orgId
+                                        organizationId = notification.organizationId
+                                        organizationPostId = notification.postId
+                                        page = Screen.Organization
                                     }
                                 },
-                                onApplyClick = { org ->
-                                    appliedOrgIds = appliedOrgIds + org.id
+                                onOpenDirectory = {
+                                    selectedTab = 1
+                                    page = Screen.Main
+                                    notificationDetailOpen = false
                                 },
-                                onBackClick = {
-                                    selectedOrgForDetails = null
-                                }
                             )
-                        }
-
-                        showMyOrganizations -> {
-                            MyOrganizationsScreen(
-                                allOrganizations = ubSoitOrganizations,
-                                bookmarkedIds = bookmarkedOrgIds,
-                                appliedOrgIds = appliedOrgIds,
-                                onOpenOrgClick = { org ->
-                                    selectedOrgForDetails = org
-                                },
-                                onBackClick = {
-                                    showMyOrganizations = false
+                            Screen.Organization ->
+                                OrganizationPage(
+                                    repository = repository,
+                                    id = organizationId,
+                                    initialPostId = organizationPostId,
+                                    onApply = { page = Screen.Apply },
+                                    onShowMessage = { message -> dialog = message },
+                                )
+                            Screen.Apply ->
+                                ApplyPage(
+                                    repository = repository,
+                                    id = organizationId,
+                                    onSubmitted = { id ->
+                                        applicationId = id
+                                        page = Screen.Status
+                                    },
+                                )
+                            Screen.Status -> ApplicationPage(repository = repository, id = applicationId)
+                            Screen.Officer ->
+                                OfficerPage(
+                                    repository = repository,
+                                    orgId = organizationId,
+                                    onSelectOrganization = { id -> organizationId = id },
+                                    onReviewApplication = { id ->
+                                        applicationId = id
+                                        page = Screen.Review
+                                    },
+                                    onOpenMembers = { page = Screen.Members },
+                                    onPublish = { page = Screen.Publish },
+                                )
+                            Screen.Review ->
+                                ReviewPage(
+                                    repository = repository,
+                                    id = applicationId,
+                                    onDone = { page = Screen.Officer },
+                                )
+                            Screen.Members ->
+                                MembersPage(
+                                    repository = repository,
+                                    orgId = organizationId,
+                                    onShowMessage = { message -> dialog = message },
+                                )
+                            Screen.Publish ->
+                                PublishPage(
+                                    repository = repository,
+                                    orgId = organizationId,
+                                    onDone = { page = Screen.Officer },
+                                )
+                            Screen.Main ->
+                                when (selectedTab) {
+                                    0 -> FeedPage(
+                                        repository = repository,
+                                        onOpenOrganization = { id -> openOrganization(id) },
+                                        onOpenPost = { id, postId ->
+                                            organizationId = id
+                                            organizationPostId = postId
+                                            page = Screen.Organization
+                                        },
+                                    )
+                                    1 ->
+                                        DirectoryPage(
+                                            repository = repository,
+                                            onOpenOrganization = { id -> openOrganization(id) },
+                                        )
+                                    2 ->
+                                        ApplicationsPage(
+                                            repository = repository,
+                                            onOpenApplication = { id ->
+                                                applicationId = id
+                                                page = Screen.Status
+                                            },
+                                            onOpenDirectory = { selectedTab = 1 },
+                                            onOpenOrganization = { id -> openOrganization(id) },
+                                        )
+                                    3 ->
+                                        ProfilePage(
+                                            repository = repository,
+                                            onOpenOfficerPortal = { page = Screen.Officer },
+                                            onOpenOrganization = { id -> openOrganization(id) },
+                                            onOpenDirectory = { selectedTab = 1 },
+                                            onOpenApplications = { selectedTab = 2 },
+                                            onShowMessage = { message -> dialog = message },
+                                        )
                                 }
-                            )
-                        }
-
-                        else -> {
-                            DirectoryScreen(
-                                bookmarkedIds = bookmarkedOrgIds,
-                                onToggleBookmark = { orgId ->
-                                    bookmarkedOrgIds = if (orgId in bookmarkedOrgIds) {
-                                        bookmarkedOrgIds - orgId
-                                    } else {
-                                        bookmarkedOrgIds + orgId
-                                    }
-                                },
-                                onBookmarkBannerClick = {
-                                    showMyOrganizations = true
-                                },
-                                onViewOrgClick = { org ->
-                                    selectedOrgForDetails = org
-                                }
-                            )
                         }
                     }
                 }
             }
+        }
+        if (dialog != null) {
+            AlertDialog(
+                onDismissRequest = { dialog = null },
+                title = { Text("StageCall") },
+                text = { Text(dialog.orEmpty()) },
+                confirmButton = { TextButton(onClick = { dialog = null }) { Text("Close") } },
+            )
         }
     }
 }
