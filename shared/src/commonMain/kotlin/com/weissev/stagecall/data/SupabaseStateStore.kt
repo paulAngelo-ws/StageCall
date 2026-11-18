@@ -68,6 +68,7 @@ internal data class PostRow(
     @SerialName("members_only") val membersOnly: Boolean,
     val schedule: String,
     @SerialName("created_at") val createdAt: Instant,
+    @SerialName("image_path") val imagePath: String? = null,
 ) {
-    fun toPost() = CampusPost(id, organizationId, title, message, category, membersOnly, schedule, createdAt)
+    fun toPost() = CampusPost(id, organizationId, title, message, category, membersOnly, schedule, createdAt, imagePath)
 }

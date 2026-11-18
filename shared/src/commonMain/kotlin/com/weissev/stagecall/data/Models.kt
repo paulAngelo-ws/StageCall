@@ -40,6 +40,7 @@ data class CampusPost(
     val membersOnly: Boolean = false,
     val schedule: String = "",
     val createdAt: Instant = Clock.System.now(),
+    val imagePath: String? = null,
 )
 
 @Serializable

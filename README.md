@@ -33,6 +33,11 @@ For iOS, open `iosApp` in Xcode. Platform folders provide startup code; the shar
    - `supabase/migrations/202611180007_organization_settings.sql`
    - `supabase/migrations/202611180008_profile_preferences.sql`
    - `supabase/migrations/202611180009_application_length_limits.sql`
+   - `supabase/migrations/202611180010_university_auth.sql`
+   - `supabase/migrations/202611180011_organization_posts.sql`
+   - `supabase/migrations/202611180012_post_audiences.sql`
+   - `supabase/migrations/202611180013_post_images.sql`
+   - `supabase/migrations/202611180014_organization_notifications.sql`
 3. Copy the entries from `local.properties.example` to the root `local.properties`, keeping any existing `sdk.dir` entry:
 
    ```properties
@@ -52,7 +57,8 @@ Use a publishable key or legacy `anon` key, never a secret or `service_role` key
 2. In Google Cloud Console, configure the OAuth consent screen and add test users if the app is in testing. Create a **Web application** OAuth client and add the Supabase callback URL to its authorized redirect URIs.
 3. Enable Google in Supabase and enter the client ID and secret. Keep the secret in Supabase, not in the app or repository.
 4. In Supabase **Authentication → URL Configuration**, allow `stagecall://auth` for Android and iOS, the exact web origin including its port and your production URL, and `http://localhost:*` for desktop.
-5. Rebuild and sign in with Google. Check **Authentication → Users** in Supabase, restart to test session restoration, and use **Profile → Sign out** to test sign-out.
+5. In **Authentication → Hooks**, enable the **Before User Created** hook with the Postgres function `public.stagecall_before_user_created`, and the **Custom Access Token** hook with `public.stagecall_restrict_access_token`. Applying the migration alone does not enable these hooks. If either hook is already in use, combine its existing logic with these functions instead of replacing it.
+6. Rebuild and sign in with Google. Only addresses at `ubaguio.edu` or its subdomains (such as `20255821@s.ubaguio.edu`) are allowed. Test an unrelated Google account as well. Existing access tokens remain valid until they expire; the token hook blocks the next token issuance or refresh. Check **Authentication → Users**, restart to test session restoration, and use **Profile → Sign out** to test sign-out.
 
 ### Assign a president
 
@@ -78,9 +84,11 @@ The database prevents duplicate applications and closed-recruitment submissions.
 
 ## Data and limitations
 
-The catalog is read from Supabase and refreshed approximately every 30 seconds. A verified public catalog cache can be used after a failed read; an initial failure shows **No database data loaded**. The cache uses Android preferences, a desktop file in `~/.stagecall/`, iOS user defaults, or browser local storage. Bookmarks, theme settings, applications, memberships, and the profile bio are tied to the signed-in account; the bio is limited to 500 characters.
+The catalog is read from Supabase and refreshed approximately every 30 seconds. Organization presidents can publish public or members-only posts from their organization's page; the database checks their role for that specific organization. Members-only posts are available to that organization's members and are not saved in the public cache. A verified public catalog cache can be used after a failed read; an initial failure shows **No database data loaded**. The cache uses Android preferences, a desktop file in `~/.stagecall/`, iOS user defaults, or browser local storage. Bookmarks, theme settings, applications, memberships, and the profile bio are tied to the signed-in account; the bio is limited to 500 characters.
 
-Catalog data can be edited through the Supabase Table Editor. Clients can read organizations and public posts; RLS hides members-only posts and denies catalog writes. Organization member counts and members-only posts are not yet connected to memberships. File uploads, device notifications, and organization update management are not connected.
+The in-app notification feed refreshes approximately every 10 seconds while the app is open. It includes public posts, members-only posts from organizations the user belongs to, organization profile changes, and changes to application availability. Read status is saved per account. Existing posts are included when migration 014 is applied; earlier organization changes are not backfilled.
+
+Catalog data can be edited through the Supabase Table Editor. Clients can read organizations and public posts; RLS restricts members-only posts and denies direct catalog writes. Presidents can attach one JPEG or PNG photo up to 5 MB to a post. Photos are stored in the private `post-images` bucket and use the post's audience for access. Failed post submissions can leave unused uploads that an administrator may need to remove. Organization member counts and device notifications are not connected.
 
 ## Project structure
 

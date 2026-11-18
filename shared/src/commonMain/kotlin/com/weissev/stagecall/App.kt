@@ -60,6 +60,7 @@ import com.weissev.stagecall.data.StageCallRepository
 import com.weissev.stagecall.data.Student
 import com.weissev.stagecall.data.ApplicationStore
 import com.weissev.stagecall.data.OrganizationRoleStore
+import com.weissev.stagecall.data.NotificationStore
 import com.weissev.stagecall.screens.ReviewApplicationsPage
 import kotlinx.coroutines.delay
 import com.weissev.stagecall.data.RepositoryPersistence
@@ -129,6 +130,18 @@ fun App() {
     val user = client.auth.currentUserOrNull()
     val userId = user?.id.orEmpty()
     val accountEmail = user?.email.orEmpty()
+    val emailDomain = accountEmail.substringAfter('@', "").lowercase()
+    if (accountEmail.count { it == '@' } != 1 || accountEmail.substringBefore('@').isEmpty() ||
+        !(emailDomain == "ubaguio.edu" || emailDomain.endsWith(".ubaguio.edu"))) {
+        StageCallTheme {
+            Column(Modifier.fillMaxSize().padding(32.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("Please sign in with your University of Baguio Google account.", textAlign = TextAlign.Center)
+                TextButton(onClick = { scope.launch { try { AuthSession.signOut() } catch (e: Exception) { authError = e.message ?: "Could not sign out. Please try again." } } }) { Text("Sign out") }
+                authError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            }
+        }
+        return
+    }
     val accountName = user?.userMetadata?.get("full_name")?.jsonPrimitive?.contentOrNull.orEmpty()
     val accountPicture = user?.userMetadata?.get("avatar_url")?.jsonPrimitive?.contentOrNull
         ?: user?.userMetadata?.get("picture")?.jsonPrimitive?.contentOrNull.orEmpty()
@@ -179,9 +192,17 @@ fun App() {
     }
     val applicationStore = remember(client, repository) { ApplicationStore(client, repository) }
     val roleStore = remember(client, repository) { OrganizationRoleStore(client, repository) }
+    val notificationStore = remember(client, userId) { NotificationStore(client) }
+    LaunchedEffect(notificationStore) {
+        while (true) {
+            notificationStore.refresh()
+            delay(10_000)
+        }
+    }
     LaunchedEffect(roleStore) {
         while (true) {
             roleStore.refreshRoles()
+            if (roleStore.loaded) roleStore.refreshMemberPosts()
             delay(30_000)
         }
     }
@@ -247,7 +268,7 @@ fun App() {
                     topBar = {
                         Column(Modifier.statusBarsPadding()) {
                             TopHeader(
-                                unreadCount = repository.unreadNotificationCount,
+                                unreadCount = notificationStore.unreadCount,
                                 onSearchClick = {
                                     selectedTab = 1
                                     page = Screen.Main
@@ -305,15 +326,23 @@ fun App() {
                         } else when (page) {
                             Screen.Notifications -> NotificationsPage(
                                 repository = repository,
+                                store = notificationStore,
                                 onOpenNotification = { notification ->
                                     notificationDetailOpen = true
                                     if (notification.applicationId != null) {
                                         applicationId = notification.applicationId
                                         page = Screen.Status
                                     } else {
-                                        organizationId = notification.organizationId
-                                        organizationPostId = notification.postId
-                                        page = Screen.Organization
+                                        scope.launch {
+                                            if (notification.postId != null) {
+                                                try { persistence.synchronize(); roleStore.refreshMemberPosts() }
+                                                catch (e: kotlinx.coroutines.CancellationException) { throw e }
+                                                catch (_: Exception) { persistence.retry() }
+                                            }
+                                            organizationId = notification.organizationId
+                                            organizationPostId = notification.postId
+                                            page = Screen.Organization
+                                        }
                                     }
                                 },
                                 onOpenDirectory = {
@@ -469,6 +498,7 @@ private fun LoginScreen(error: String?, enabled: Boolean, signingIn: Boolean = f
             Icon(Icons.Filled.TheaterComedy, contentDescription = null, modifier = Modifier.padding(bottom = 16.dp).size(96.dp), tint = MaterialTheme.colorScheme.primary)
             Text("StageCall", style = MaterialTheme.typography.headlineLarge)
             Text("Discover your campus community", modifier = Modifier.padding(top = 8.dp, bottom = 24.dp), style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
+            Text("Use your University of Baguio Google account (for example, name@s.ubaguio.edu).", modifier = Modifier.padding(bottom = 16.dp), textAlign = TextAlign.Center)
             OutlinedButton(onClick = onSignIn, enabled = enabled,
                 colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White, contentColor = Color(0xFF1F1F1F))) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {

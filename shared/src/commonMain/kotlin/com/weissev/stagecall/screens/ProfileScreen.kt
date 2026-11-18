@@ -57,6 +57,7 @@ internal fun ProfilePage(
 ) {
     var editing by remember { mutableStateOf(false) }
     var bio by remember { mutableStateOf("") }
+    var viewingPicture by remember(accountPicture) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val picture by produceState<ImageBitmap?>(null, accountPicture) {
         if (accountPicture.startsWith("https://")) {
@@ -75,6 +76,8 @@ internal fun ProfilePage(
         it.student.studentId == repository.profile.studentId && it.status == ApplicationStatus.Pending
     }
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
+
+    if (viewingPicture) picture?.let { ImageLightbox(it, onClose = { viewingPicture = false }) }
 
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState())
@@ -99,7 +102,7 @@ internal fun ProfilePage(
                 contentAlignment = Alignment.Center,
             ) {
                 if (picture != null) {
-                    Image(picture!!, contentDescription = "Google profile picture", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                    Image(picture!!, contentDescription = "Open Google profile picture", modifier = Modifier.fillMaxSize().clickable(role = Role.Button) { viewingPicture = true }, contentScale = ContentScale.Crop)
                 } else {
                     Icon(Icons.Outlined.PersonOutline, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
                 }

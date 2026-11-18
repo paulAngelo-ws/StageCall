@@ -7,11 +7,13 @@ import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.Google
 import io.github.jan.supabase.postgrest.Postgrest
+import io.github.jan.supabase.storage.Storage
 
 /** Shared so mobile deep link handlers and the UI use the same auth client. */
 object AuthSession {
     val client = if (SupabaseConfig.isConfigured) createSupabaseClient(SupabaseConfig.url, SupabaseConfig.publishableKey) {
         install(Postgrest)
+        install(Storage)
         install(Auth) {
             flowType = FlowType.PKCE
             scheme = "stagecall"

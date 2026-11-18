@@ -6,6 +6,9 @@ import androidx.compose.runtime.setValue
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.storage.storage
+import io.ktor.http.ContentType
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -40,6 +43,17 @@ private data class SettingsParameter(
     @SerialName("p_banner_color") val color: String,
 )
 
+@Serializable
+private data class CreatePostParameter(
+    @SerialName("p_organization_id") val organizationId: String,
+    @SerialName("p_title") val title: String,
+    @SerialName("p_message") val message: String,
+    @SerialName("p_category") val category: String,
+    @SerialName("p_schedule") val schedule: String,
+    @SerialName("p_members_only") val membersOnly: Boolean,
+    @SerialName("p_image_path") val imagePath: String?,
+)
+
 internal class OrganizationRoleStore(private val client: SupabaseClient, private val repository: StageCallRepository) {
     var roles by mutableStateOf<Map<String, String>>(emptyMap())
         private set
@@ -58,6 +72,36 @@ internal class OrganizationRoleStore(private val client: SupabaseClient, private
         private set
     var savingSettings by mutableStateOf(false)
         private set
+
+    var postError by mutableStateOf<String?>(null)
+        private set
+    var creatingPost by mutableStateOf(false)
+        private set
+
+    fun clearPostError() { postError = null }
+
+    suspend fun createPost(organizationId: String, title: String, message: String, category: String, schedule: String, membersOnly: Boolean, image: ByteArray?, imageType: String?): Boolean {
+        creatingPost = true
+        postError = null
+        return try {
+            val imagePath = if (image != null && imageType != null) {
+                val userId = client.auth.currentUserOrNull()?.id ?: error("No signed-in user")
+                val extension = if (imageType == "image/png") "png" else "jpg"
+                val path = "$organizationId/$userId/${kotlin.random.Random.nextLong().toULong()}.$extension"
+                client.storage.from("post-images").upload(path, image) { contentType = ContentType.parse(imageType) }
+                path
+            } else null
+            val post = client.postgrest.rpc("create_organization_post", Json.encodeToJsonElement(
+                CreatePostParameter(organizationId, title.trim(), message.trim(), category, schedule.trim(), membersOnly, imagePath)
+            ).jsonObject).decodeList<PostRow>().single().toPost()
+            repository.posts.removeAll { it.id == post.id }
+            repository.posts.add(0, post)
+            true
+        } catch (e: CancellationException) { throw e } catch (e: Exception) {
+            postError = "Could not create post. Check your connection and president access, then try again."
+            false
+        } finally { creatingPost = false }
+    }
 
     suspend fun saveSettings(org: Organization, headline: String, description: String, recruiting: Boolean, color: String): Boolean {
         savingSettings = true
@@ -81,13 +125,26 @@ internal class OrganizationRoleStore(private val client: SupabaseClient, private
             val rows = client.from("organization_memberships").select().decodeList<MembershipRow>()
             roles = rows.associate { it.organizationId to it.role }
             repository.setMemberships(rows.map { Member(it.organizationId, repository.profile, it.role) })
+            repository.posts.removeAll { it.membersOnly && it.organizationId !in roles }
             loaded = true
             error = null
         } catch (e: CancellationException) { throw e } catch (e: Exception) {
             roles = emptyMap()
             repository.setMemberships(emptyList())
+            repository.posts.removeAll { it.membersOnly }
             loaded = false
             error = "Could not load organization roles. Check your connection and retry."
+        }
+    }
+
+    suspend fun refreshMemberPosts() {
+        try {
+            val posts = client.from("campus_posts").select().decodeList<PostRow>()
+                .map { it.toPost() }.filter { it.membersOnly && it.organizationId in roles }
+            repository.posts.removeAll { it.membersOnly }
+            repository.posts.addAll(posts)
+        } catch (e: CancellationException) { throw e } catch (_: Exception) {
+            repository.posts.removeAll { it.membersOnly }
         }
     }
 

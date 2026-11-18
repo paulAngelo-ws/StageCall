@@ -112,6 +112,8 @@ kotlin {
             implementation(libs.compose.uiTooling)
         }
         commonMain.dependencies {
+            implementation("io.github.vinceglb:filekit-compose:0.8.8")
+            implementation("io.github.jan-tennert.supabase:storage-kt:${libs.versions.supabase.get()}")
             implementation(libs.supabase.postgrest)
             implementation(libs.supabase.auth)
             implementation(libs.kotlinx.serialization.json)

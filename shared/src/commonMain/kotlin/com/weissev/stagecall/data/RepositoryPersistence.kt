@@ -63,7 +63,7 @@ internal class RepositoryPersistence(
         val cacheSaved = saveCache(state)
         // Catalog refresh must not erase the authenticated user's application state.
         val personal = repository.snapshot()
-        repository.restore(state.copy(profile = personal.profile, applications = personal.applications,
+        repository.restore(state.copy(posts = state.posts + personal.posts.filter { it.membersOnly }, profile = personal.profile, applications = personal.applications,
             members = personal.members, notifications = personal.notifications))
         repository.bookmarks.addAll(bookmarks)
         hasData = true

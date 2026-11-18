@@ -38,23 +38,28 @@ import com.weissev.stagecall.components.OrganizationThumbnail
 import com.weissev.stagecall.components.StageCallCard
 import com.weissev.stagecall.data.StageCallNotification
 import com.weissev.stagecall.data.StageCallRepository
+import com.weissev.stagecall.data.NotificationStore
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlin.time.Clock
 
 @Composable
-fun NotificationsPage(
+internal fun NotificationsPage(
     repository: StageCallRepository,
+    store: NotificationStore,
     onOpenNotification: (StageCallNotification) -> Unit,
     onOpenDirectory: () -> Unit,
 ) {
     var unreadOnly by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     val now by produceState(Clock.System.now()) {
         while (true) {
             delay(1_000L)
             value = Clock.System.now()
         }
     }
-    val notifications = repository.notifications
+    val notifications = store.notifications.filter { n -> repository.organizations.any { it.id == n.organizationId } }
     val visibleNotifications = if (unreadOnly) notifications.filter { !it.isRead } else notifications
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -74,16 +79,22 @@ fun NotificationsPage(
                 FilterChip(
                     selected = unreadOnly,
                     onClick = { unreadOnly = true },
-                    label = { Text("Unread (${repository.unreadNotificationCount})") },
+                    label = { Text("Unread (${store.unreadCount})") },
                 )
             }
         }
-        if (repository.unreadNotificationCount > 0) {
+        if (store.error != null) {
             item {
-                TextButton(onClick = repository::markAllNotificationsRead) { Text("Mark all as read") }
+                Text(store.error.orEmpty(), color = MaterialTheme.colorScheme.error)
+                TextButton(onClick = { scope.launch { store.refresh() } }) { Text("Retry") }
             }
         }
-        if (visibleNotifications.isEmpty()) {
+        if (store.unreadCount > 0) {
+            item {
+                TextButton(onClick = { scope.launch { store.markRead() } }) { Text("Mark all as read") }
+            }
+        }
+        if (visibleNotifications.isEmpty() && store.error == null) {
             item {
                 StageCallCard(Modifier.fillMaxWidth()) {
                     Column(
@@ -92,11 +103,11 @@ fun NotificationsPage(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         Icon(Icons.Outlined.NotificationsNone, null, Modifier.size(40.dp), tint = MaterialTheme.colorScheme.primary)
-                        Text(if (unreadOnly) "You're all caught up" else "No notifications yet", style = MaterialTheme.typography.titleMedium)
+                        Text(if (!store.loaded) "Loading notifications…" else if (unreadOnly) "You're all caught up" else "No notifications yet", style = MaterialTheme.typography.titleMedium)
                         Text(
                             when {
                                 unreadOnly -> "You have no unread updates."
-                                else -> "Posts, activities, and changes from organizations you've joined will appear here."
+                                else -> "Public posts and organization updates appear here, along with members-only posts from your organizations."
                             },
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -111,7 +122,7 @@ fun NotificationsPage(
             StageCallCard(
                 Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium)
                     .clickable(role = Role.Button, onClickLabel = "Open ${notification.title}") {
-                        repository.markNotificationRead(notification.id)
+                        scope.launch { store.markRead(notification.id) }
                         onOpenNotification(notification)
                     },
             ) {
