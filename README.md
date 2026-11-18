@@ -1,6 +1,6 @@
 # StageCall
 
-StageCall helps university students discover campus organizations and updates, apply for membership, and follow their applications. Organization presidents can review applications. The app uses Kotlin and Compose Multiplatform for Android, desktop, web, and iOS, with Supabase for authentication and data.
+StageCall helps university students discover campus organizations and updates, apply for membership, and follow their applications. Organization presidents can review membership applications, and StageCall admins can approve new organization registrations. The app uses Kotlin and Compose Multiplatform for Android, desktop, web, and iOS, with Supabase for authentication and data.
 
 [![Download Android APK](docs/assets/download-android.svg)](https://github.com/paulAngelo-ws/StageCall/releases/latest)
 
@@ -38,6 +38,8 @@ For iOS, open `iosApp` in Xcode. Platform folders provide startup code; the shar
    - `supabase/migrations/202611180012_post_audiences.sql`
    - `supabase/migrations/202611180013_post_images.sql`
    - `supabase/migrations/202611180014_organization_notifications.sql`
+   - `supabase/migrations/202611180015_organization_registrations.sql`
+   - `supabase/migrations/202611180016_allow_admin_registration_review.sql`
 3. Copy the entries from `local.properties.example` to the root `local.properties`, keeping any existing `sdk.dir` entry:
 
    ```properties
@@ -71,6 +73,24 @@ on conflict (organization_id, user_id) do update set role = excluded.role;
 ```
 
 If no row is inserted, check the email in **Authentication → Users**. `supabase/admin/assign_game_club_president.sql` is a specific assignment script; review its email and organization name before running it. A president can open their organization and select **Review applications**. The database checks their organization when recording a decision. Presidents can also use **Edit organization** to change the About heading and description, open or close registration, and choose a banner color.
+
+### Assign a registration admin
+
+After migration `015`, have the intended admin sign in with their university account at least once. Replace the example email with their sign-in email and run the following in the Supabase SQL Editor.
+
+```sql
+insert into public.stagecall_admins (user_id)
+select id from auth.users where lower(email) = lower('admin@ubaguio.edu')
+on conflict (user_id) do nothing;
+```
+
+If **Admin review** is missing, check that the insert added a row for the exact account under **Authentication → Users**. Running it with the example address adds no row unless that account exists. The app checks access when you open the registration page and checks again while it stays open. To revoke access, delete that account's row from `public.stagecall_admins`.
+
+## Register a club or organization
+
+1. Open **Directory → Register an organization** and submit the organization's name, category, tagline, and description.
+2. From an admin account, open **Directory → Register an organization → Admin review**. The queue includes all pending requests, including ones the admin submitted. Approve or reject the registration and optionally include a message for the applicant.
+3. The applicant can see the decision in **My registrations**, which updates automatically. Approval publishes the listing and assigns the applicant as its president. Recruitment starts closed and the president can open it under **Edit organization**.
 
 ## Try the membership workflow
 

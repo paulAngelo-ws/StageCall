@@ -37,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -146,125 +147,142 @@ private fun ApplicationsContent(
             val (_, barColor) = organizationCardColors[
                 repository.organizations.indexOf(organization) % organizationCardColors.size
             ]
-            val cardContentColor = MaterialTheme.colorScheme.onSurface
-            val secondaryColor = MaterialTheme.colorScheme.onSurfaceVariant
-            val statusIcon = when (app.status) {
-                ApplicationStatus.Pending -> Icons.Outlined.Schedule
-                ApplicationStatus.Accepted -> Icons.Outlined.CheckCircle
-                ApplicationStatus.Rejected -> Icons.Outlined.Cancel
-            }
-            StageCallCard(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(MaterialTheme.shapes.medium)
-                    .clickable(
-                        role = Role.Button,
-                        onClickLabel = if (app.status == ApplicationStatus.Accepted)
-                            "Open ${organization.name}" else "View application for ${organization.name}",
-                    ) {
-                        if (app.status == ApplicationStatus.Accepted)
-                            onOpenOrganization(app.organizationId)
-                        else onOpenApplication(app.id)
+            val accepted = app.status == ApplicationStatus.Accepted
+            ApplicationCard(
+                title = organization.name,
+                subtitle = "General membership",
+                barColor = barColor,
+                status = app.status,
+                submittedAt = app.submittedAt,
+                updatedAt = app.updatedAt,
+                message = if (app.status == ApplicationStatus.Pending) "Your application has been submitted."
+                    else app.decision.ifBlank {
+                        if (accepted) "You're in! Get to know your new community."
+                        else "Your application has been rejected."
                     },
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    contentColor = cardContentColor,
-                ),
+                actionLabel = if (accepted) "Open organization" else "View application",
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .drawBehind {
-                            drawRect(barColor, size = Size(6.dp.toPx(), size.height))
-                        }
-                        .padding(start = 20.dp, top = 16.dp, end = 16.dp, bottom = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        OrganizationThumbnail()
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(2.dp),
-                        ) {
-                            Text(organization.name, style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                "General membership",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = secondaryColor,
-                            )
-                        }
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = cardContentColor,
-                            shape = MaterialTheme.shapes.small,
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            ) {
-                                Icon(statusIcon, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Text(
-                                    if (app.status == ApplicationStatus.Pending) "In review" else app.status.name,
-                                    style = MaterialTheme.typography.labelMedium,
-                                )
-                            }
-                        }
-                        Box(Modifier.weight(1f))
-                        Text(
-                            text = app.updatedAt?.let { "Updated ${applicationCardDate(it)}" }
-                                ?: "Applied ${applicationCardDate(app.submittedAt)}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = secondaryColor,
-                        )
-                    }
-                    Text(
-                        if (app.status == ApplicationStatus.Pending)
-                            "Your application has been submitted."
-                        else
-                            app.decision.ifBlank {
-                                if (app.status == ApplicationStatus.Accepted)
-                                    "You're in! Get to know your new community."
-                                else "Your application has been rejected."
-                            },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = secondaryColor,
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth()
-                            .heightIn(min = 48.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Text(
-                            if (app.status == ApplicationStatus.Accepted) "Open organization" else "View application",
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Icon(
-                            Icons.AutoMirrored.Outlined.ArrowForward,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
-                }
+                if (accepted) onOpenOrganization(app.organizationId) else onOpenApplication(app.id)
             }
         }
         OutlinedButton(
             onClick = onOpenDirectory,
             modifier = Modifier.fillMaxWidth(),
         ) { Text("Explore organizations") }
+    }
+}
+
+@Composable
+internal fun ApplicationCard(
+    title: String,
+    subtitle: String,
+    barColor: Color,
+    status: ApplicationStatus,
+    submittedAt: Instant,
+    updatedAt: Instant?,
+    message: String,
+    actionLabel: String,
+    statusLabel: String = if (status == ApplicationStatus.Pending) "In review" else status.name,
+    onClick: () -> Unit,
+) {
+    val cardContentColor = MaterialTheme.colorScheme.onSurface
+    val secondaryColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val statusIcon = when (status) {
+        ApplicationStatus.Pending -> Icons.Outlined.Schedule
+        ApplicationStatus.Accepted -> Icons.Outlined.CheckCircle
+        ApplicationStatus.Rejected -> Icons.Outlined.Cancel
+    }
+    StageCallCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+            .clickable(role = Role.Button, onClickLabel = actionLabel, onClick = onClick),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = cardContentColor,
+        ),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .drawBehind {
+                    drawRect(barColor, size = Size(6.dp.toPx(), size.height))
+                }
+                .padding(start = 20.dp, top = 16.dp, end = 16.dp, bottom = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                OrganizationThumbnail()
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Text(title, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = secondaryColor,
+                    )
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = cardContentColor,
+                    shape = MaterialTheme.shapes.small,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Icon(statusIcon, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Text(
+                            statusLabel,
+                            style = MaterialTheme.typography.labelMedium,
+                        )
+                    }
+                }
+                Box(Modifier.weight(1f))
+                Text(
+                    text = updatedAt?.let { "Updated ${applicationCardDate(it)}" }
+                        ?: "Applied ${applicationCardDate(submittedAt)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = secondaryColor,
+                )
+            }
+            Text(
+                message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = secondaryColor,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth()
+                    .heightIn(min = 48.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    actionLabel,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Icon(
+                    Icons.AutoMirrored.Outlined.ArrowForward,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
     }
 }
 

@@ -18,6 +18,7 @@ import androidx.compose.material.icons.outlined.Check
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -32,6 +33,7 @@ import com.weissev.stagecall.data.MembershipApplication
 import com.weissev.stagecall.data.OrganizationRoleStore
 import kotlinx.coroutines.launch
 import kotlin.time.Clock
+import kotlin.time.Instant
 
 @Composable
 internal fun ReviewApplicationsPage(store: OrganizationRoleStore, organizationId: String, organizationName: String, bannerColor: String, onDecisionSaved: (Boolean) -> Unit) {
@@ -127,39 +129,19 @@ internal fun ReviewApplicationsPage(store: OrganizationRoleStore, organizationId
                 modifier = Modifier.fillMaxWidth().heightIn(min = 180.dp))
         }
         items(applications, key = { it.id }) { application ->
-            StageCallCard(Modifier.fillMaxWidth()) {
-                Box(Modifier.fillMaxWidth().height(6.dp).background(accentColor))
-                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(application.student.name, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        val badgeColor = when (application.status) {
-                            ApplicationStatus.Pending -> androidx.compose.ui.graphics.Color(0xFF775A00)
-                            ApplicationStatus.Accepted -> androidx.compose.ui.graphics.Color(0xFF226B3A)
-                            ApplicationStatus.Rejected -> androidx.compose.ui.graphics.Color(0xFFAE3030)
-                        }
-                        Surface(color = badgeColor, shape = MaterialTheme.shapes.large) {
-                            Text(application.status.name, Modifier.padding(horizontal = 10.dp, vertical = 4.dp), color = androidx.compose.ui.graphics.Color.White, style = MaterialTheme.typography.labelMedium)
-                        }
-                    }
-                    Text("${application.year} • ID: ${application.studentNumber}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(application.student.email, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("Submitted ${relativePostTime(application.submittedAt, Clock.System.now())}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    var overflowing by remember(application.id, application.reason) { mutableStateOf(false) }
-                    Text(application.reason, modifier = Modifier.fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f), MaterialTheme.shapes.small)
-                        .clickable(onClickLabel = "View full application") { details = application }
-                        .padding(12.dp), maxLines = 3, overflow = TextOverflow.Ellipsis,
-                        onTextLayout = { overflowing = it.hasVisualOverflow })
-                    if (overflowing) TextButton(onClick = { details = application }, contentPadding = PaddingValues(0.dp)) { Text("Read more") }
-                    if (application.decision.isNotBlank()) Text("Decision note: ${application.decision}", style = MaterialTheme.typography.bodySmall)
-                    if (application.status == ApplicationStatus.Pending) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Button(onClick = { selected = application; accept = true; message = "" }, modifier = Modifier.weight(1f), enabled = !store.reviewing) { Text("Accept") }
-                            OutlinedButton(onClick = { selected = application; accept = false; message = "" }, modifier = Modifier.weight(1f), enabled = !store.reviewing) { Text("Reject") }
-                        }
-                    }
-                }
-            }
+            ApplicationReviewCard(
+                title = application.student.name,
+                metadata = listOf("${application.year} • ID: ${application.studentNumber}", application.student.email),
+                submittedAt = application.submittedAt,
+                preview = application.reason,
+                status = application.status,
+                accentColor = accentColor,
+                decision = application.decision,
+                acceptLabel = "Accept",
+                working = store.reviewing,
+                onViewDetails = { details = application },
+                onDecide = { accepted -> selected = application; accept = accepted; message = "" },
+            )
         }
     }
     details?.let { application ->
@@ -208,5 +190,61 @@ internal fun ReviewApplicationsPage(store: OrganizationRoleStore, organizationId
             },
             dismissButton = { TextButton(enabled = !store.reviewing, onClick = { selected = null }) { Text("Cancel") } },
         )
+    }
+}
+
+
+@Composable
+internal fun ApplicationReviewCard(
+    title: String,
+    metadata: List<String>,
+    submittedAt: Instant,
+    preview: String,
+    status: ApplicationStatus,
+    accentColor: Color,
+    decision: String,
+    acceptLabel: String,
+    working: Boolean,
+    onViewDetails: () -> Unit,
+    onDecide: (Boolean) -> Unit,
+) {
+    val badgeColor = when (status) {
+        ApplicationStatus.Pending -> Color(0xFF775A00)
+        ApplicationStatus.Accepted -> Color(0xFF226B3A)
+        ApplicationStatus.Rejected -> Color(0xFFAE3030)
+    }
+    StageCallCard(Modifier.fillMaxWidth()) {
+        Box(Modifier.fillMaxWidth().height(6.dp).background(accentColor))
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Surface(color = badgeColor, shape = MaterialTheme.shapes.large) {
+                    Text(status.name, Modifier.padding(horizontal = 10.dp, vertical = 4.dp), color = Color.White, style = MaterialTheme.typography.labelMedium)
+                }
+            }
+            for (line in metadata) {
+                Text(line, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text("Submitted ${relativePostTime(submittedAt, Clock.System.now())}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            var overflowing by remember(title, preview) { mutableStateOf(false) }
+            Text(
+                preview,
+                modifier = Modifier.fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f), MaterialTheme.shapes.small)
+                    .clickable(onClickLabel = "View full application", onClick = onViewDetails)
+                    .padding(12.dp),
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                onTextLayout = { overflowing = it.hasVisualOverflow },
+            )
+            if (overflowing) TextButton(onClick = onViewDetails, contentPadding = PaddingValues(0.dp)) { Text("Read more") }
+            if (decision.isNotBlank()) Text("Decision note: $decision", style = MaterialTheme.typography.bodySmall)
+            if (status == ApplicationStatus.Pending) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(onClick = { onDecide(true) }, modifier = Modifier.weight(1f), enabled = !working) { Text(acceptLabel) }
+                    OutlinedButton(onClick = { onDecide(false) }, modifier = Modifier.weight(1f), enabled = !working) { Text("Reject") }
+                }
+            }
+        }
     }
 }

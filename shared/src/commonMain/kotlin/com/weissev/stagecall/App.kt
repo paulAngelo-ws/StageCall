@@ -59,6 +59,7 @@ import com.weissev.stagecall.components.StatusPanel
 import com.weissev.stagecall.data.StageCallRepository
 import com.weissev.stagecall.data.Student
 import com.weissev.stagecall.data.ApplicationStore
+import com.weissev.stagecall.data.OrganizationRegistrationStore
 import com.weissev.stagecall.data.OrganizationRoleStore
 import com.weissev.stagecall.data.NotificationStore
 import com.weissev.stagecall.screens.ReviewApplicationsPage
@@ -74,6 +75,9 @@ import com.weissev.stagecall.screens.ApplyPage
 import com.weissev.stagecall.screens.DirectoryPage
 import com.weissev.stagecall.screens.FeedPage
 import com.weissev.stagecall.screens.OrganizationPage
+import com.weissev.stagecall.screens.OrganizationRegistrationPage
+import com.weissev.stagecall.screens.OrganizationRegistrationDetailsPage
+import com.weissev.stagecall.screens.OrganizationRegistrationReviewPage
 import com.weissev.stagecall.screens.ProfilePage
 import com.weissev.stagecall.screens.NotificationsPage
 
@@ -86,6 +90,9 @@ private enum class Screen {
     Notifications,
     ApplicationHistory,
     ReviewApplications,
+    OrganizationRegistration,
+    OrganizationRegistrationDetails,
+    OrganizationRegistrationReview,
 }
 
 private data class NotificationOrigin(
@@ -192,6 +199,7 @@ fun App() {
     }
     val applicationStore = remember(client, repository) { ApplicationStore(client, repository) }
     val roleStore = remember(client, repository) { OrganizationRoleStore(client, repository) }
+    val registrationStore = remember(client, userId) { OrganizationRegistrationStore(client, userId) }
     val notificationStore = remember(client, userId) { NotificationStore(client) }
     LaunchedEffect(notificationStore) {
         while (true) {
@@ -223,6 +231,17 @@ fun App() {
     var page by remember { mutableStateOf(Screen.Main) }
     var organizationId by remember { mutableStateOf("") }
     var organizationPostId by remember { mutableStateOf<Int?>(null) }
+    var registrationId by remember(userId) { mutableStateOf(0) }
+    val registrationPageOpen = page == Screen.OrganizationRegistration || page == Screen.OrganizationRegistrationDetails
+    val registrationReviewOpen = page == Screen.OrganizationRegistrationReview
+    LaunchedEffect(registrationStore, registrationPageOpen, registrationReviewOpen) {
+        if (registrationPageOpen || registrationReviewOpen) {
+            while (true) {
+                registrationStore.refresh(reviewing = registrationReviewOpen)
+                delay(15_000)
+            }
+        }
+    }
     var applicationId by remember { mutableStateOf(0) }
     var dialog by remember { mutableStateOf<String?>(null) }
     var notificationOrigin by remember { mutableStateOf(NotificationOrigin()) }
@@ -250,6 +269,7 @@ fun App() {
         page =
             when (page) {
                 Screen.Apply, Screen.ReviewApplications -> Screen.Organization
+                Screen.OrganizationRegistrationDetails, Screen.OrganizationRegistrationReview -> Screen.OrganizationRegistration
                 else -> Screen.Main
             }
     }
@@ -351,6 +371,49 @@ fun App() {
                                     notificationDetailOpen = false
                                 },
                             )
+                            Screen.OrganizationRegistration -> OrganizationRegistrationPage(
+                                store = registrationStore,
+                                onSubmitted = { showSuccess("Organization registration submitted") },
+                                onOpenAdminReview = {
+                                    if (registrationStore.isAdmin) page = Screen.OrganizationRegistrationReview
+                                },
+                                onOpenRegistration = { id ->
+                                    registrationId = id
+                                    page = Screen.OrganizationRegistrationDetails
+                                },
+                            )
+                            Screen.OrganizationRegistrationDetails -> OrganizationRegistrationDetailsPage(
+                                registration = registrationStore.own.firstOrNull { it.id == registrationId },
+                                onOpenOrganization = { id ->
+                                    try {
+                                        if (repository.organizations.none { it.id == id }) persistence.synchronize()
+                                        roleStore.refreshRoles()
+                                        if (roleStore.loaded && repository.organizations.any { it.id == id }) {
+                                            openOrganization(id)
+                                            true
+                                        } else false
+                                    } catch (e: kotlinx.coroutines.CancellationException) {
+                                        throw e
+                                    } catch (_: Exception) {
+                                        false
+                                    }
+                                },
+                            )
+                            Screen.OrganizationRegistrationReview -> {
+                                if (registrationStore.isAdmin) {
+                                    OrganizationRegistrationReviewPage(
+                                        store = registrationStore,
+                                        onDecisionSaved = { approved ->
+                                            if (approved) persistence.retry()
+                                            showSuccess(if (approved) "Organization approved" else "Registration rejected")
+                                        },
+                                    )
+                                } else {
+                                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                        StatusPanel(registrationStore.accessError ?: "Registration review requires admin access.")
+                                    }
+                                }
+                            }
                             Screen.Organization ->
                                 OrganizationPage(
                                     repository = repository,
@@ -420,6 +483,7 @@ fun App() {
                                     1 ->
                                         DirectoryPage(
                                             repository = repository,
+                                            onRegisterOrganization = { page = Screen.OrganizationRegistration },
                                             onOpenOrganization = { id -> openOrganization(id) },
                                         )
                                     2 ->
