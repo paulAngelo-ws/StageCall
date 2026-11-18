@@ -1,19 +1,18 @@
-﻿package com.weissev.stagecall.screens
+package com.weissev.stagecall.screens
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ChevronRight
-import androidx.compose.material.icons.outlined.AdminPanelSettings
 import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material.icons.outlined.HelpOutline
-import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.Email
+import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material.icons.outlined.PersonOutline
-import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,10 +20,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.weissev.stagecall.components.OrganizationThumbnail
 import com.weissev.stagecall.components.StageCallCard
 import com.weissev.stagecall.components.organizationCardColors
@@ -34,18 +35,17 @@ import com.weissev.stagecall.data.StageCallRepository
 @Composable
 fun ProfilePage(
     repository: StageCallRepository,
-    onOpenOfficerPortal: () -> Unit,
-    onShowMessage: (String) -> Unit,
+    darkTheme: Boolean,
+    onDarkThemeChange: (Boolean) -> Unit,
     onOpenOrganization: (String) -> Unit,
     onOpenDirectory: () -> Unit,
     onOpenApplications: () -> Unit,
 ) {
     var editing by remember { mutableStateOf(false) }
+    var showingAbout by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var error by remember { mutableStateOf("") }
-    var editingInterests by remember { mutableStateOf(false) }
-    var selectedInterests by remember { mutableStateOf(emptyList<String>()) }
     var showAllOrganizations by remember { mutableStateOf(false) }
     val memberships = repository.members.filter {
         it.student.studentId == repository.profile.studentId && it.active
@@ -60,42 +60,79 @@ fun ProfilePage(
             .padding(horizontal = 24.dp, vertical = 28.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Box(
-                    Modifier.size(72.dp).clip(MaterialTheme.shapes.medium)
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(Icons.Outlined.PersonOutline, null, Modifier.size(36.dp))
-                }
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(repository.profile.name, style = MaterialTheme.typography.headlineSmall)
-                    Text("BS Information Technology · Year 2", style = MaterialTheme.typography.bodySmall, color = muted)
-                    Text("Student ID: ${repository.profile.studentId}", style = MaterialTheme.typography.bodySmall, color = muted)
-                }
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                repository.profile.name.ifBlank { "Guest" },
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+            )
+            Box(
+                Modifier.padding(top = 4.dp).size(88.dp).clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Outlined.PersonOutline,
+                    contentDescription = null,
+                    modifier = Modifier.size(48.dp),
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                )
             }
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(repository.profile.email, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = muted)
-                OutlinedButton(onClick = {
-                    name = repository.profile.name
-                    email = repository.profile.email
-                    error = ""
-                    editing = true
-                }) {
-                    Icon(Icons.Outlined.Edit, null, Modifier.size(16.dp))
-                    Text("Edit profile", Modifier.padding(start = 6.dp))
-                }
-            }
-        }
-        StageCallCard(Modifier.fillMaxWidth()) {
-            Row(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+            Row(Modifier.widthIn(max = 360.dp).fillMaxWidth().padding(vertical = 4.dp)) {
                 ProfileStat(memberships.size, "Organizations", Modifier.weight(1f)) {
                     showAllOrganizations = !showAllOrganizations
                 }
                 ProfileStat(repository.bookmarks.size, "Saved", Modifier.weight(1f), onOpenDirectory)
                 ProfileStat(activeApplications, "Active applications", Modifier.weight(1f), onOpenApplications)
             }
+            Row(
+                modifier = Modifier.widthIn(max = 360.dp).fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Button(
+                    enabled = repository.profile.studentId.isNotBlank(),
+                    onClick = {
+                        name = repository.profile.name
+                        email = repository.profile.email
+                        error = ""
+                        editing = true
+                    },
+                    modifier = Modifier.weight(1f).height(36.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                    ),
+                ) {
+                    Icon(Icons.Outlined.Edit, null, Modifier.size(16.dp))
+                    Text("Edit profile", Modifier.padding(start = 6.dp))
+                }
+                FilledTonalButton(
+                    enabled = repository.profile.studentId.isNotBlank(),
+                    onClick = { showingAbout = true },
+                    modifier = Modifier.weight(1f).height(36.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    ),
+                ) {
+                    Text("About")
+                }
+            }
+            Text(
+                text = if (repository.profile.studentId.isBlank()) "Browsing as a guest" else "",
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+            )
         }
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -142,51 +179,64 @@ fun ProfilePage(
                 }
             }
         }
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("My interests", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
-                TextButton(onClick = {
-                    selectedInterests = repository.interests.toList()
-                    editingInterests = true
-                }) { Text("Edit") }
-            }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                for (interest in repository.interests) {
-                    Surface(
-                        shape = MaterialTheme.shapes.small,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                        color = MaterialTheme.colorScheme.surface,
-                    ) {
-                        Text(interest, Modifier.padding(horizontal = 10.dp, vertical = 7.dp), style = MaterialTheme.typography.labelMedium)
-                    }
-                }
-            }
-            Text(
-                if (repository.interests.isEmpty()) "Add topics you're interested in." else "Topics you're interested in.",
-                style = MaterialTheme.typography.bodySmall, color = muted,
-            )
-        }
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Account", style = MaterialTheme.typography.titleMedium)
             StageCallCard(Modifier.fillMaxWidth()) {
-                ProfileAccountRow(Icons.Outlined.Notifications, "Notifications", if (repository.notificationsEnabled) "On" else "Off") {
-                    repository.notificationsEnabled = !repository.notificationsEnabled
+                Row(
+                    Modifier.fillMaxWidth()
+                        .toggleable(value = darkTheme, role = Role.Switch, onValueChange = onDarkThemeChange)
+                        .heightIn(min = 64.dp).padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Icon(
+                        if (darkTheme) Icons.Outlined.DarkMode else Icons.Outlined.LightMode,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                    Column(Modifier.weight(1f)) {
+                        Text("Theme", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            if (darkTheme) "Dark" else "Light",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = darkTheme, onCheckedChange = null)
                 }
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                ProfileAccountRow(Icons.Outlined.Shield, "Privacy & visibility") {
-                    onShowMessage("Application details are shared with organization officers. This prototype uses session-only demo data; real accounts and permissions will be added with the backend.")
-                }
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                ProfileAccountRow(Icons.Outlined.HelpOutline, "Help & support") {
-                    onShowMessage("Explore Directory, apply for membership, and track progress in Applications. Use the demo Officer Portal to accept or reject applications and publish posts.")
-                }
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                ProfileAccountRow(Icons.Outlined.AdminPanelSettings, "Demo Officer Portal", onClick = onOpenOfficerPortal)
             }
         }
-        Text(
-            "StageCall · Your campus. Your community.", Modifier.fillMaxWidth(),
-            style = MaterialTheme.typography.bodySmall, color = muted, textAlign = TextAlign.Center,
+    }
+    if (showingAbout) {
+        AlertDialog(
+            onDismissRequest = { showingAbout = false },
+            title = { Text("About ${repository.profile.name}") },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Student ID", style = MaterialTheme.typography.labelMedium, color = muted)
+                        Text(repository.profile.studentId, style = MaterialTheme.typography.bodyMedium)
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Course / Year", style = MaterialTheme.typography.labelMedium, color = muted)
+                        Text("BS Information Technology · Year 2", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Email", style = MaterialTheme.typography.labelMedium, color = muted)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Icon(Icons.Outlined.Email, null, Modifier.size(18.dp), tint = muted)
+                            Text(repository.profile.email, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showingAbout = false }) { Text("Close") } },
         )
     }
     if (editing) {
@@ -209,34 +259,6 @@ fun ProfilePage(
             dismissButton = { TextButton(onClick = { editing = false }) { Text("Cancel") } },
         )
     }
-    if (editingInterests) {
-        AlertDialog(
-            onDismissRequest = { editingInterests = false },
-            title = { Text("My interests") },
-            text = {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    for (interest in listOf("Mobile dev", "Cybersecurity", "UI/UX", "Web dev", "AI", "Game dev", "Community service")) {
-                        FilterChip(
-                            selected = interest in selectedInterests,
-                            onClick = {
-                                selectedInterests = if (interest in selectedInterests)
-                                    selectedInterests - interest else selectedInterests + interest
-                            },
-                            label = { Text(interest) },
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    repository.interests.clear()
-                    repository.interests.addAll(selectedInterests)
-                    editingInterests = false
-                }) { Text("Save") }
-            },
-            dismissButton = { TextButton(onClick = { editingInterests = false }) { Text("Cancel") } },
-        )
-    }
 }
 
 @Composable
@@ -248,22 +270,7 @@ private fun ProfileStat(count: Int, label: String, modifier: Modifier, onClick: 
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Text(count.toString(), style = MaterialTheme.typography.titleLarge)
-        Text(label, style = MaterialTheme.typography.labelSmall,
+        Text(label, style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, lineHeight = 14.sp),
             color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
-    }
-}
-
-@Composable
-private fun ProfileAccountRow(icon: ImageVector, label: String, value: String? = null, onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onClick)
-            .heightIn(min = 52.dp).padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Icon(icon, null, Modifier.size(20.dp))
-        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-        if (value != null) Text(value, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Icon(Icons.Outlined.ChevronRight, null, Modifier.size(20.dp))
     }
 }

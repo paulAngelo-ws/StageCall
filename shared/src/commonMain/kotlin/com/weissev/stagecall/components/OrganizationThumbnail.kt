@@ -11,7 +11,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -19,14 +18,14 @@ internal fun OrganizationThumbnail() {
     Box(
         modifier = Modifier.size(44.dp)
             .clip(MaterialTheme.shapes.small)
-            .background(Color(0xFFEDEDED)),
+            .background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
             Icons.Outlined.Image,
             contentDescription = null,
             modifier = Modifier.size(26.dp),
-            tint = Color(0xFF242424),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }

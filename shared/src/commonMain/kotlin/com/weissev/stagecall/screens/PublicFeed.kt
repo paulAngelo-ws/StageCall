@@ -1,7 +1,6 @@
 package com.weissev.stagecall.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,13 +15,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.Image
 import com.weissev.stagecall.components.StageCallCard
 import com.weissev.stagecall.components.OrganizationThumbnail
 import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -51,6 +54,7 @@ fun FeedPage(
     onOpenPost: (String, Int) -> Unit,
 ) {
     var category by remember { mutableStateOf("All") }
+    var showFilters by remember { mutableStateOf(false) }
     val now by produceState(Clock.System.now()) {
         while (true) {
             delay(1_000L)
@@ -65,24 +69,45 @@ fun FeedPage(
             .padding(horizontal = 24.dp, vertical = 28.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text(
-            text = "Campus feed",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.SemiBold,
-        )
-        // Each chip updates the selected value when clicked.
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            for (option in listOf("All", "Recruitment", "Events", "Announcements")) {
-                FilterChip(
-                    selected = category == option,
-                    onClick = { category = option },
-                    label = { Text(option) },
-                )
+            Text(
+                text = "Campus feed",
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Box {
+                IconButton(onClick = { showFilters = true }) {
+                    Icon(
+                        imageVector = Icons.Outlined.FilterList,
+                        contentDescription = "Filter posts: $category",
+                        tint = if (category == "All") MaterialTheme.colorScheme.onSurfaceVariant
+                            else MaterialTheme.colorScheme.primary,
+                    )
+                }
+                DropdownMenu(
+                    expanded = showFilters,
+                    onDismissRequest = { showFilters = false },
+                ) {
+                    for (option in listOf("All", "Recruitment", "Events", "Announcements")) {
+                        DropdownMenuItem(
+                            text = { Text(option) },
+                            onClick = {
+                                category = option
+                                showFilters = false
+                            },
+                            trailingIcon = {
+                                if (category == option) {
+                                    Icon(Icons.Outlined.Check, contentDescription = "Selected")
+                                }
+                            },
+                        )
+                    }
+                }
             }
         }
         // Keep posts that match the selected category and the student's access.

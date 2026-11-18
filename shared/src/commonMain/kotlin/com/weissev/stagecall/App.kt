@@ -14,6 +14,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
@@ -25,17 +26,18 @@ import com.weissev.stagecall.components.NavigationBar
 import com.weissev.stagecall.components.StageCallTheme
 import com.weissev.stagecall.components.TopHeader
 import com.weissev.stagecall.data.StageCallRepository
+import com.weissev.stagecall.data.RepositoryPersistence
+import com.weissev.stagecall.data.SupabaseConfig
+import com.weissev.stagecall.data.SupabaseStateStore
+import com.weissev.stagecall.data.rememberRepositoryCache
 import com.weissev.stagecall.screens.ApplicationPage
 import com.weissev.stagecall.screens.ApplicationsPage
+import com.weissev.stagecall.screens.ApplicationHistoryPage
 import com.weissev.stagecall.screens.ApplyPage
 import com.weissev.stagecall.screens.DirectoryPage
 import com.weissev.stagecall.screens.FeedPage
-import com.weissev.stagecall.screens.MembersPage
-import com.weissev.stagecall.screens.OfficerPage
 import com.weissev.stagecall.screens.OrganizationPage
 import com.weissev.stagecall.screens.ProfilePage
-import com.weissev.stagecall.screens.PublishPage
-import com.weissev.stagecall.screens.ReviewPage
 import com.weissev.stagecall.screens.NotificationsPage
 
 // Named pages prevent spelling mistakes when navigating between screens.
@@ -44,30 +46,37 @@ private enum class Screen {
     Organization,
     Apply,
     Status,
-    Officer,
-    Review,
-    Members,
-    Publish,
     Notifications,
+    ApplicationHistory,
 }
 
 private data class NotificationOrigin(
     val page: Screen = Screen.Main,
-    val organizationId: String = "1",
+    val organizationId: String = "",
     val postId: Int? = null,
-    val applicationId: Int = 1,
+    val applicationId: Int = 0,
 )
 
 /** One shared entry point for Android, iOS, desktop and web. */
 @Composable
 fun App() {
-    // remember keeps this session data when Compose redraws the screen.
     val repository = remember { StageCallRepository() }
+    val cache = rememberRepositoryCache()
+    val remote = remember { if (SupabaseConfig.isConfigured) SupabaseStateStore() else null }
+    val persistence = remember(repository, cache, remote) { RepositoryPersistence(repository, cache, remote) }
+    LaunchedEffect(persistence) {
+        try {
+            persistence.run()
+        } finally {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { remote?.close() }
+        }
+    }
+    val themeSettings = rememberThemeSettings()
     var selectedTab by remember { mutableStateOf(0) }
     var page by remember { mutableStateOf(Screen.Main) }
-    var organizationId by remember { mutableStateOf("1") }
+    var organizationId by remember { mutableStateOf("") }
     var organizationPostId by remember { mutableStateOf<Int?>(null) }
-    var applicationId by remember { mutableStateOf(1) }
+    var applicationId by remember { mutableStateOf(0) }
     var dialog by remember { mutableStateOf<String?>(null) }
     var notificationOrigin by remember { mutableStateOf(NotificationOrigin()) }
     var notificationDetailOpen by remember { mutableStateOf(false) }
@@ -93,15 +102,12 @@ fun App() {
         }
         page =
             when (page) {
-                Screen.Review,
-                Screen.Publish,
-                Screen.Members -> Screen.Officer
                 Screen.Apply -> Screen.Organization
                 else -> Screen.Main
             }
     }
 
-    StageCallTheme {
+    StageCallTheme(darkTheme = themeSettings.isDarkTheme) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surfaceVariant) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
                 Scaffold(
@@ -112,7 +118,14 @@ fun App() {
                             if (page != Screen.Main) {
                                 TextButton(onClick = { goBack() }) { Text("Back") }
                             }
-                            TopHeader(unreadCount = repository.unreadNotificationCount) {
+                            TopHeader(
+                                unreadCount = repository.unreadNotificationCount,
+                                onSearchClick = {
+                                    selectedTab = 1
+                                    page = Screen.Main
+                                    notificationDetailOpen = false
+                                },
+                            ) {
                                 if (page != Screen.Notifications && !notificationDetailOpen) {
                                     notificationOrigin = NotificationOrigin(page, organizationId, organizationPostId, applicationId)
                                 }
@@ -134,7 +147,17 @@ fun App() {
                     },
                 ) { padding ->
                     Box(Modifier.padding(padding)) {
-                        when (page) {
+                        if (!persistence.hasData) {
+                            Column(
+                                modifier = Modifier.fillMaxSize().padding(24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+                            ) {
+                                Text("No database data loaded", style = MaterialTheme.typography.titleMedium)
+                                Text(persistence.status)
+                                TextButton(onClick = persistence::retry) { Text("Retry connection") }
+                            }
+                        } else when (page) {
                             Screen.Notifications -> NotificationsPage(
                                 repository = repository,
                                 onOpenNotification = { notification ->
@@ -160,7 +183,6 @@ fun App() {
                                     id = organizationId,
                                     initialPostId = organizationPostId,
                                     onApply = { page = Screen.Apply },
-                                    onShowMessage = { message -> dialog = message },
                                 )
                             Screen.Apply ->
                                 ApplyPage(
@@ -171,37 +193,19 @@ fun App() {
                                         page = Screen.Status
                                     },
                                 )
+                            Screen.ApplicationHistory -> ApplicationHistoryPage(
+                                repository = repository,
+                                onOpenApplication = { id ->
+                                    applicationId = id
+                                    page = Screen.Status
+                                },
+                                onOpenDirectory = {
+                                    selectedTab = 1
+                                    page = Screen.Main
+                                },
+                                onOpenOrganization = { id -> openOrganization(id) },
+                            )
                             Screen.Status -> ApplicationPage(repository = repository, id = applicationId)
-                            Screen.Officer ->
-                                OfficerPage(
-                                    repository = repository,
-                                    orgId = organizationId,
-                                    onSelectOrganization = { id -> organizationId = id },
-                                    onReviewApplication = { id ->
-                                        applicationId = id
-                                        page = Screen.Review
-                                    },
-                                    onOpenMembers = { page = Screen.Members },
-                                    onPublish = { page = Screen.Publish },
-                                )
-                            Screen.Review ->
-                                ReviewPage(
-                                    repository = repository,
-                                    id = applicationId,
-                                    onDone = { page = Screen.Officer },
-                                )
-                            Screen.Members ->
-                                MembersPage(
-                                    repository = repository,
-                                    orgId = organizationId,
-                                    onShowMessage = { message -> dialog = message },
-                                )
-                            Screen.Publish ->
-                                PublishPage(
-                                    repository = repository,
-                                    orgId = organizationId,
-                                    onDone = { page = Screen.Officer },
-                                )
                             Screen.Main ->
                                 when (selectedTab) {
                                     0 -> FeedPage(
@@ -221,6 +225,7 @@ fun App() {
                                     2 ->
                                         ApplicationsPage(
                                             repository = repository,
+                                            onOpenHistory = { page = Screen.ApplicationHistory },
                                             onOpenApplication = { id ->
                                                 applicationId = id
                                                 page = Screen.Status
@@ -231,11 +236,11 @@ fun App() {
                                     3 ->
                                         ProfilePage(
                                             repository = repository,
-                                            onOpenOfficerPortal = { page = Screen.Officer },
+                                            darkTheme = themeSettings.isDarkTheme,
+                                            onDarkThemeChange = themeSettings::updateDarkTheme,
                                             onOpenOrganization = { id -> openOrganization(id) },
                                             onOpenDirectory = { selectedTab = 1 },
                                             onOpenApplications = { selectedTab = 2 },
-                                            onShowMessage = { message -> dialog = message },
                                         )
                                 }
                         }

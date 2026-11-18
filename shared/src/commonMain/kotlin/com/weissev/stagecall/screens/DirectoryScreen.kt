@@ -23,7 +23,6 @@ import com.weissev.stagecall.components.organizationCardColors
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconToggleButton
@@ -39,7 +38,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -56,11 +54,9 @@ fun DirectoryPage(
     onOpenOrganization: (String) -> Unit,
 ) {
     var query by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf("All categories") }
-    var status by remember { mutableStateOf("All statuses") }
     var sort by remember { mutableStateOf("Recommended") }
     var showSorting by remember { mutableStateOf(false) }
-    val cardContentColor = Color(0xFF263238)
+    val cardContentColor = MaterialTheme.colorScheme.onSurface
     // The screen scrolls vertically when its content is taller than the window.
     Column(
         modifier = Modifier
@@ -101,40 +97,11 @@ fun DirectoryPage(
                 }
             },
         )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            DirectoryFilterDropdown(
-                label = "Category",
-                selected = category,
-                options = listOf("All categories") + repository.organizations.map { it.category }.distinct(),
-                onSelect = { category = it },
-                modifier = Modifier.weight(1f),
-            )
-            DirectoryFilterDropdown(
-                label = "Status",
-                selected = status,
-                options = listOf("All statuses", "Recruiting", "Closed"),
-                onSelect = { status = it },
-                modifier = Modifier.weight(1f),
-            )
-        }
         val searchText = query.trim()
         var results =
             repository.organizations.filter { organization ->
-                val matchesSearch =
-                    organization.name.contains(searchText, ignoreCase = true) ||
-                        organization.category.contains(searchText, ignoreCase = true)
-                val matchesCategory =
-                    category == "All categories" || category == organization.category
-                val matchesStatus =
-                    when (status) {
-                        "Recruiting" -> organization.isRecruiting
-                        "Closed" -> !organization.isRecruiting
-                        else -> true
-                    }
-                matchesSearch && matchesCategory && matchesStatus
+                organization.name.contains(searchText, ignoreCase = true) ||
+                    organization.category.contains(searchText, ignoreCase = true)
             }
         results =
             when (sort) {
@@ -142,6 +109,8 @@ fun DirectoryPage(
                 "Most members" -> results.sortedByDescending { it.memberCount }
                 else -> results
             }
+        // Stable sorting keeps the selected order within each bookmark group.
+        results = results.sortedByDescending { it.id in repository.bookmarks }
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -169,7 +138,7 @@ fun DirectoryPage(
                 }
             }
         }
-        if (results.isEmpty()) Text("No matching organizations. Try a different search or filter.")
+        if (results.isEmpty()) Text("No matching organizations. Try a different search.")
         for (org in results) {
             val (_, barColor) = organizationCardColors[
                 repository.organizations.indexOf(org) % organizationCardColors.size
@@ -184,7 +153,7 @@ fun DirectoryPage(
                         onClick = { onOpenOrganization(org.id) },
                     ),
                 colors = CardDefaults.cardColors(
-                    containerColor = Color.White,
+                    containerColor = MaterialTheme.colorScheme.surface,
                     contentColor = cardContentColor,
                 ),
             ) {
@@ -230,45 +199,6 @@ fun DirectoryPage(
                         color = cardContentColor,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DirectoryFilterDropdown(
-    label: String,
-    selected: String,
-    options: List<String>,
-    onSelect: (String) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    var expanded by remember { mutableStateOf(false) }
-    Column(modifier) {
-        Box {
-            OutlinedButton(
-                onClick = { expanded = true },
-                modifier = Modifier.fillMaxWidth().semantics { contentDescription = label },
-                shape = MaterialTheme.shapes.small,
-            ) {
-                Text(
-                    selected,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Icon(Icons.Default.ArrowDropDown, contentDescription = null)
-            }
-            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                options.forEach { option ->
-                    DropdownMenuItem(
-                        text = { Text(option) },
-                        onClick = {
-                            onSelect(option)
-                            expanded = false
-                        },
                     )
                 }
             }

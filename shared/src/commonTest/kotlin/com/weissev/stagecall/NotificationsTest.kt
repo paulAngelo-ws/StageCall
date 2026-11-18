@@ -10,7 +10,7 @@ import kotlin.test.assertTrue
 class NotificationsTest {
     @Test
     fun onlyJoinedOrganizationsSendPostAndActivityNotifications() {
-        val repo = StageCallRepository()
+        val repo = populatedRepository()
         assertTrue(repo.publish("1", "Other club", "Update", "Announcements", false, ""))
         assertTrue(repo.notifications.isEmpty())
         assertFalse(repo.publish("4", "Incomplete event", "Update", "Events", false, ""))
@@ -27,7 +27,7 @@ class NotificationsTest {
 
     @Test
     fun organizationChangesNotifyMembersAndIgnoreUnchangedSaves() {
-        val repo = StageCallRepository()
+        val repo = populatedRepository()
         val organization = repo.organization("4")
         assertTrue(repo.updateOrganization(organization.copy(isRecruiting = false)))
         assertEquals(NotificationType.Organization, repo.notifications.single().type)
@@ -43,18 +43,15 @@ class NotificationsTest {
     }
 
     @Test
-    fun unrelatedOrganizationChangesAndDisabledNotificationsAreSilent() {
-        val repo = StageCallRepository()
+    fun unrelatedOrganizationChangesAreSilent() {
+        val repo = populatedRepository()
         assertTrue(repo.updateOrganization(repo.organization("1").copy(isRecruiting = false)))
-        assertTrue(repo.notifications.isEmpty())
-        repo.notificationsEnabled = false
-        assertTrue(repo.publish("4", "New post", "Update", "Announcements", false, ""))
         assertTrue(repo.notifications.isEmpty())
     }
 
     @Test
     fun applicationUpdatesLinkToTheCurrentStudentsApplication() {
-        val repo = StageCallRepository()
+        val repo = populatedRepository()
         repo.decide(2, true, "Welcome, Alex Rivera")
         assertTrue(repo.notifications.isEmpty())
         repo.decide(1, true, "Welcome!")

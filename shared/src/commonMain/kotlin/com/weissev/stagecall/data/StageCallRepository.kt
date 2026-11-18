@@ -3,74 +3,37 @@ package com.weissev.stagecall.data
 import androidx.compose.runtime.*
 import kotlin.time.Clock
 
-/**
- * Local backend for this prototype. Data lasts until the app is closed. All changes happen here so
- * every screen sees the same information.
- */
 class StageCallRepository {
-    val organizations = mutableStateListOf<Organization>().apply { addAll(ubSoitOrganizations) }
-    var profile by mutableStateOf(Student("Alex Morgan", "alex.morgan@university.edu"))
-        private set
+    internal fun snapshot() = RepositorySnapshot(
+        organizations.toList(), profile, bookmarks.toList(), applications.toList(),
+        members.toList(), posts.toList(), notificationHistory.toList(),
+    )
 
-    val bookmarks = mutableStateListOf("1")
-    val interests = mutableStateListOf("Mobile dev", "Cybersecurity", "UI/UX")
-    val applications =
-        mutableStateListOf(
-            MembershipApplication(
-                1,
-                "2",
-                profile,
-                "2nd Year",
-                "I want to build my cybersecurity skills.",
-            ),
-            MembershipApplication(
-                2,
-                "3",
-                Student("Alex Rivera", "alex.rivera@university.edu", "2024-00201"),
-                "2nd Year",
-                "I want to use my IT skills in community outreach.",
-            ),
-            MembershipApplication(
-                3,
-                "3",
-                Student("Jamie Santos", "jamie@university.edu", "2025-00302"),
-                "1st Year",
-                "I enjoy helping fellow students.",
-            ),
-        )
-    val members =
-        mutableStateListOf(
-            Member("4", profile),
-            Member("3", Student("Morgan Lee", "morgan@university.edu"), "President"),
-        )
-    val posts =
-        mutableStateListOf(
-            CampusPost(
-                1,
-                "1",
-                "Build with us this semester.",
-                "Join the web, mobile or AI team. All skill levels welcome - curiosity comes first.",
-                "Recruitment",
-            ),
-            CampusPost(
-                2,
-                "2",
-                "Intro to Capture the Flag.",
-                "Learn how to approach CTF challenges and team up with fellow students.",
-                "Events",
-                schedule = "Nov 19 - 4:30 PM - IT Lab 3",
-            ),
-            CampusPost(
-                3,
-                "3",
-                "Welcome to SSVG!",
-                "Join our volunteer orientation and explore community outreach.",
-                "Announcements",
-            ),
-        )
-    var draftTitle by mutableStateOf("")
-    var draftMessage by mutableStateOf("")
-    var notificationsEnabled by mutableStateOf(true)
+    internal fun restore(snapshot: RepositorySnapshot) {
+        organizations.clear()
+        organizations.addAll(snapshot.organizations)
+        profile = snapshot.profile
+        bookmarks.clear()
+        bookmarks.addAll(snapshot.bookmarks)
+        applications.clear()
+        applications.addAll(snapshot.applications)
+        members.clear()
+        members.addAll(snapshot.members)
+        posts.clear()
+        posts.addAll(snapshot.posts)
+        notificationHistory.clear()
+        notificationHistory.addAll(snapshot.notifications)
+        nextNotificationId = (snapshot.notifications.maxOfOrNull { it.id } ?: 0) + 1
+    }
+
+    val organizations = mutableStateListOf<Organization>()
+    var profile by mutableStateOf(Student("", "", ""))
+        private set
+    val bookmarks = mutableStateListOf<String>()
+    internal var onBookmarksChanged: () -> Unit = {}
+    val applications = mutableStateListOf<MembershipApplication>()
+    val members = mutableStateListOf<Member>()
+    val posts = mutableStateListOf<CampusPost>()
     private val notificationHistory = mutableStateListOf<StageCallNotification>()
     private var nextNotificationId = 1
 
@@ -95,7 +58,6 @@ class StageCallRepository {
         postId: Int? = null,
         applicationId: Int? = null,
     ) {
-        if (!notificationsEnabled) return
         if (type != NotificationType.Application && !isMember(organizationId)) return
         notificationHistory.add(
             StageCallNotification(
@@ -157,7 +119,8 @@ class StageCallRepository {
 
     // A student can apply only when all three membership rules pass.
     fun canApply(id: String): Boolean {
-        if (!organization(id).isRecruiting) return false
+        if (organizations.none { it.id == id && it.isRecruiting }) return false
+        if (profile.studentId.isBlank()) return false
         if (isMember(id)) return false
 
         val alreadyApplied =
@@ -169,11 +132,13 @@ class StageCallRepository {
     }
 
     fun toggleBookmark(id: String) {
+        if (organizations.none { it.id == id }) return
         if (id in bookmarks) {
             bookmarks.remove(id)
         } else {
             bookmarks.add(id)
         }
+        onBookmarksChanged()
     }
 
     // Return false when the form is incomplete or an application already exists.
@@ -259,12 +224,11 @@ class StageCallRepository {
             if (schedule.isNotBlank()) "$schedule · ${post.message}" else post.message,
             postId = post.id,
         )
-        draftTitle = ""
-        draftMessage = ""
         return true
     }
 
     fun updateProfile(name: String, email: String): Boolean {
+        if (profile.studentId.isBlank()) return false
         if (name.isBlank() || !email.contains('@')) return false
         profile = profile.copy(name = name.trim(), email = email.trim())
         return true

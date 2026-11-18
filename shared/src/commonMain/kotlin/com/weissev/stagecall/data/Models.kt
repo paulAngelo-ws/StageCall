@@ -1,17 +1,22 @@
 package com.weissev.stagecall.data
 
+import kotlinx.serialization.Serializable
+
 import kotlin.time.Clock
 import kotlin.time.Instant
 
 // These small classes describe the information used by our screens.
+@Serializable
 enum class ApplicationStatus {
     Pending,
     Accepted,
     Rejected,
 }
 
-data class Student(val name: String, val email: String, val studentId: String = "2024-00128")
+@Serializable
+data class Student(val name: String, val email: String, val studentId: String = "")
 
+@Serializable
 data class MembershipApplication(
     val id: Int,
     val organizationId: String,
@@ -24,6 +29,7 @@ data class MembershipApplication(
     val updatedAt: Instant? = null,
 )
 
+@Serializable
 data class CampusPost(
     val id: Int,
     val organizationId: String,
@@ -35,6 +41,7 @@ data class CampusPost(
     val createdAt: Instant = Clock.System.now(),
 )
 
+@Serializable
 data class Member(
     val organizationId: String,
     val student: Student,
@@ -42,6 +49,7 @@ data class Member(
     val active: Boolean = true,
 )
 
+@Serializable
 enum class NotificationType {
     Post,
     Activity,
@@ -49,6 +57,7 @@ enum class NotificationType {
     Application,
 }
 
+@Serializable
 data class StageCallNotification(
     val id: Int,
     val organizationId: String,

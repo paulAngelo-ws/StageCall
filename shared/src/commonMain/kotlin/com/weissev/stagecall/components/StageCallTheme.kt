@@ -5,6 +5,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
@@ -13,7 +14,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 // Change these colors once to update every screen in the app.
-private val campusColors =
+private val campusLightColors =
     lightColorScheme(
         primary = Color(0xFF165DCC),
         onPrimary = Color.White,
@@ -60,10 +61,44 @@ private val campusColors =
         outlineVariant = Color(0xFFDCE4EE),
     )
 
+private val campusDarkColors = darkColorScheme(
+    primary = Color(0xFF92BDFF),
+    onPrimary = Color(0xFF002F6B),
+    primaryContainer = Color(0xFF123F79),
+    onPrimaryContainer = Color(0xFFD6E5FF),
+    secondary = Color(0xFF92BDFF),
+    onSecondary = Color(0xFF002F6B),
+    secondaryContainer = Color(0xFF123F79),
+    onSecondaryContainer = Color(0xFFD6E5FF),
+    tertiary = Color(0xFF92BDFF),
+    onTertiary = Color(0xFF002F6B),
+    tertiaryContainer = Color(0xFF123F79),
+    onTertiaryContainer = Color(0xFFD6E5FF),
+    background = Color(0xFF101722),
+    onBackground = Color(0xFFE0E8F4),
+    surface = Color(0xFF151F2D),
+    onSurface = Color(0xFFE0E8F4),
+    surfaceVariant = Color(0xFF202D3F),
+    onSurfaceVariant = Color(0xFFB4C3D8),
+    surfaceTint = Color(0xFF92BDFF),
+    inverseSurface = Color(0xFFE0E8F4),
+    inverseOnSurface = Color(0xFF172B46),
+    inversePrimary = Color(0xFF165DCC),
+    surfaceDim = Color(0xFF101722),
+    surfaceBright = Color(0xFF303C4D),
+    surfaceContainerLowest = Color(0xFF0C121C),
+    surfaceContainerLow = Color(0xFF151F2D),
+    surfaceContainer = Color(0xFF1A2534),
+    surfaceContainerHigh = Color(0xFF253142),
+    surfaceContainerHighest = Color(0xFF303C4D),
+    outline = Color(0xFF8394AB),
+    outlineVariant = Color(0xFF36465C),
+)
+
 @Composable
-fun StageCallTheme(content: @Composable () -> Unit) {
+fun StageCallTheme(darkTheme: Boolean = false, content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = campusColors,
+        colorScheme = if (darkTheme) campusDarkColors else campusLightColors,
         typography = Typography(
             headlineMedium = TextStyle(fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.5).sp),
             headlineSmall = TextStyle(fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.SemiBold),

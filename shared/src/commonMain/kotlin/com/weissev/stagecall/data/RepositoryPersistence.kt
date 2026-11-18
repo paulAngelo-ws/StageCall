@@ -1,0 +1,95 @@
+package com.weissev.stagecall.data
+
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+
+/** Loads the shared catalog and caches successful reads. Guest clients never upload data. */
+internal class RepositoryPersistence(
+    private val repository: StageCallRepository,
+    private val cache: RepositoryCache,
+    private val remote: RemoteStateStore?,
+) {
+    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+    private val requests = Channel<Unit>(Channel.CONFLATED)
+    var hasData by mutableStateOf(false)
+        private set
+    var status by mutableStateOf(
+        if (remote == null) "Supabase is not configured" else "Connecting to Supabase..."
+    )
+        private set
+
+    init {
+        try {
+            val cached = cache.read()?.let { json.decodeFromString<CachedRepository>(it) }
+                ?.takeIf { it.databaseVerified && it.source == PUBLIC_CATALOG_SOURCE }
+            cached?.let {
+                require(it.state.version == 1) { "Unsupported cache version" }
+                repository.restore(publicCatalogSnapshot(it.state.organizations, it.state.posts))
+                repository.bookmarks.addAll(it.localBookmarks.distinct().filter { id ->
+                    repository.organizations.any { organization -> organization.id == id }
+                })
+                hasData = true
+                status = "Showing cached database data"
+            }
+        } catch (_: Exception) {
+            status = "Cache unavailable - connect to Supabase"
+        }
+        repository.onBookmarksChanged = {
+            if (hasData) {
+                val state = publicCatalogSnapshot(repository.organizations.toList(), repository.posts.toList())
+                if (!saveCache(state, repository.bookmarks.toList())) {
+                    status = "Bookmarks updated - local storage unavailable"
+                }
+            }
+        }
+    }
+
+    private fun saveCache(state: RepositorySnapshot, bookmarks: List<String>): Boolean = runCatching {
+        cache.write(json.encodeToString(CachedRepository(
+            state, databaseVerified = true, source = PUBLIC_CATALOG_SOURCE, localBookmarks = bookmarks,
+        )))
+    }.isSuccess
+
+    internal suspend fun synchronize() {
+        val store = remote ?: return
+        val fetched = store.load()
+        require(fetched.version == 1) { "Unsupported remote state version" }
+        val state = publicCatalogSnapshot(fetched.organizations, fetched.posts)
+        val bookmarks = repository.bookmarks.filter { id -> state.organizations.any { it.id == id } }
+        // A storage failure must not hide a successful database response.
+        val cacheSaved = saveCache(state, bookmarks)
+        repository.restore(state)
+        repository.bookmarks.addAll(bookmarks)
+        hasData = true
+        status = if (cacheSaved) "Loaded from Supabase" else "Loaded from Supabase - cache unavailable"
+    }
+
+    fun retry() { requests.trySend(Unit) }
+
+    suspend fun run() = coroutineScope {
+        if (remote == null) return@coroutineScope
+        launch {
+            while (true) {
+                retry()
+                delay(30_000)
+            }
+        }
+        for (request in requests) {
+            status = if (hasData) "Refreshing from Supabase..." else "Connecting to Supabase..."
+            try {
+                synchronize()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                status = if (hasData) "Refresh failed - showing cached data" else "Connection failed - tap to retry"
+            }
+        }
+    }
+}

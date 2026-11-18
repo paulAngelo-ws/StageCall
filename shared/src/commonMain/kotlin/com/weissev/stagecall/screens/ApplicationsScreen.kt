@@ -1,6 +1,5 @@
 package com.weissev.stagecall.screens
 
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -22,24 +21,22 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Cancel
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -54,17 +51,31 @@ fun ApplicationsPage(
     onOpenApplication: (Int) -> Unit,
     onOpenDirectory: () -> Unit,
     onOpenOrganization: (String) -> Unit,
+    onOpenHistory: () -> Unit,
+) = ApplicationsContent(repository, onOpenApplication, onOpenDirectory, onOpenOrganization, onOpenHistory)
+
+@Composable
+fun ApplicationHistoryPage(
+    repository: StageCallRepository,
+    onOpenApplication: (Int) -> Unit,
+    onOpenDirectory: () -> Unit,
+    onOpenOrganization: (String) -> Unit,
+) = ApplicationsContent(repository, onOpenApplication, onOpenDirectory, onOpenOrganization, historyOnly = true)
+
+@Composable
+private fun ApplicationsContent(
+    repository: StageCallRepository,
+    onOpenApplication: (Int) -> Unit,
+    onOpenDirectory: () -> Unit,
+    onOpenOrganization: (String) -> Unit,
+    onOpenHistory: (() -> Unit)? = null,
+    historyOnly: Boolean = false,
 ) {
-    var filter by remember { mutableStateOf("All") }
     val userApplications = repository.applications.filter {
         it.student.studentId == repository.profile.studentId
     }
     val activeCount = userApplications.count { it.status == ApplicationStatus.Pending }
-    val filterCounts = listOf(
-        "All" to userApplications.size,
-        "Active" to activeCount,
-        "Past" to userApplications.size - activeCount,
-    )
+    val pastCount = userApplications.size - activeCount
     // The screen scrolls vertically when its content is taller than the window.
     Column(
         modifier = Modifier
@@ -73,33 +84,37 @@ fun ApplicationsPage(
             .padding(horizontal = 24.dp, vertical = 28.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text(
-            text = "Applications",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.SemiBold,
-        )
-        // Each chip updates the selected value when clicked.
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            for ((option, count) in filterCounts) {
-                FilterChip(
-                    selected = filter == option,
-                    onClick = { filter = option },
-                    label = { Text("$option ($count)") },
-                )
+            Text(
+                text = if (historyOnly) "Application history" else "Applications",
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            if (onOpenHistory != null) IconButton(onClick = onOpenHistory) {
+                BadgedBox(badge = {
+                    if (pastCount > 0) Badge { Text(pastCount.toString()) }
+                }) {
+                    Icon(
+                        Icons.Outlined.History,
+                        contentDescription = "Open application history ($pastCount past applications)",
+                    )
+                }
             }
         }
+        Text(
+            text = if (historyOnly) "$pastCount past applications"
+                else "${userApplications.size} applications found · $activeCount active",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         val apps =
             userApplications.filter { application ->
-                when (filter) {
-                    "Active" -> application.status == ApplicationStatus.Pending
-                    "Past" -> application.status != ApplicationStatus.Pending
-                    else -> true
-                }
+                !historyOnly || application.status != ApplicationStatus.Pending
             }
         if (apps.isEmpty()) {
             StageCallCard(modifier = Modifier.fillMaxWidth()) {
@@ -109,11 +124,8 @@ fun ApplicationsPage(
                 ) {
                     Text("No applications here yet", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        when (filter) {
-                            "Active" -> "Your pending membership requests will appear here."
-                            "Past" -> "Your completed membership requests will appear here."
-                            else -> "Explore the directory and find a community to join."
-                        },
+                        if (historyOnly) "Your completed membership requests will appear here."
+                        else "Explore the directory and find a community to join.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -125,8 +137,8 @@ fun ApplicationsPage(
             val (_, barColor) = organizationCardColors[
                 repository.organizations.indexOf(organization) % organizationCardColors.size
             ]
-            val cardContentColor = Color(0xFF242424)
-            val secondaryColor = Color(0xFF707078)
+            val cardContentColor = MaterialTheme.colorScheme.onSurface
+            val secondaryColor = MaterialTheme.colorScheme.onSurfaceVariant
             val statusIcon = when (app.status) {
                 ApplicationStatus.Pending -> Icons.Outlined.Schedule
                 ApplicationStatus.Accepted -> Icons.Outlined.CheckCircle
@@ -146,7 +158,7 @@ fun ApplicationsPage(
                         else onOpenApplication(app.id)
                     },
                 colors = CardDefaults.cardColors(
-                    containerColor = Color.White,
+                    containerColor = MaterialTheme.colorScheme.surface,
                     contentColor = cardContentColor,
                 ),
             ) {
@@ -182,7 +194,7 @@ fun ApplicationsPage(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         Surface(
-                            color = Color(0xFFF5F5F5),
+                            color = MaterialTheme.colorScheme.surfaceVariant,
                             contentColor = cardContentColor,
                             shape = MaterialTheme.shapes.small,
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),

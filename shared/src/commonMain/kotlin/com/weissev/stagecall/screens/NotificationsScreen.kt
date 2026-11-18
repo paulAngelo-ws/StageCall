@@ -96,7 +96,6 @@ fun NotificationsPage(
                         Text(
                             when {
                                 unreadOnly -> "You have no unread updates."
-                                !repository.notificationsEnabled -> "Notifications are turned off in your profile."
                                 else -> "Posts, activities, and changes from organizations you've joined will appear here."
                             },
                             style = MaterialTheme.typography.bodyMedium,
