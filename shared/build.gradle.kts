@@ -113,6 +113,7 @@ kotlin {
         }
         commonMain.dependencies {
             implementation(libs.supabase.postgrest)
+            implementation(libs.supabase.auth)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.compose.runtime)

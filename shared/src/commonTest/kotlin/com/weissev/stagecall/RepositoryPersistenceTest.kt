@@ -59,6 +59,25 @@ class RepositoryPersistenceTest {
     }
 
     @Test
+    fun catalogRefreshPreservesSignedInApplications() = runTest {
+        val repository = StageCallRepository()
+        val persistence = RepositoryPersistence(repository, Cache(), Remote())
+        val user = Student("Student", "student@example.com", "user-id")
+        val application = MembershipApplication(42, "1", user, "2nd Year", "To learn")
+        repository.setAccount(user)
+        repository.setApplications(listOf(application))
+        val membership = Member("1", user, "President")
+        repository.setMemberships(listOf(membership))
+        persistence.synchronize()
+        assertEquals(user, repository.profile)
+        assertEquals(listOf(application), repository.applications.toList())
+        assertEquals(listOf(membership), repository.members.toList())
+        assertTrue(repository.isMember("1"))
+        assertFalse(repository.isMember("2"))
+        assertFalse(repository.canApply("1"))
+    }
+
+    @Test
     fun verifiedCatalogCacheRestoresOffline() = runTest {
         val cache = Cache()
         val repository = StageCallRepository()

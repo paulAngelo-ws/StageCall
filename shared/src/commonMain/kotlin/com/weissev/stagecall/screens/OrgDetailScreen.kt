@@ -34,6 +34,12 @@ import com.weissev.stagecall.data.StageCallRepository
 @Composable
 fun OrganizationPage(
     repository: StageCallRepository,
+    applicationsReady: Boolean,
+    rolesReady: Boolean,
+    roleError: String?,
+    isPresident: Boolean,
+    onRetryRoles: () -> Unit,
+    onReview: () -> Unit,
     id: String,
     onApply: () -> Unit,
     initialPostId: Int? = null,
@@ -74,9 +80,18 @@ fun OrganizationPage(
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    text = "${org.memberCount + repository.members.count { it.organizationId == id }} members",
+                    text = "${org.memberCount} members",
                     modifier = Modifier.fillMaxWidth(),
                 )
+            }
+        }
+        if (roleError != null) {
+            Text(roleError, color = MaterialTheme.colorScheme.error)
+            androidx.compose.material3.OutlinedButton(onClick = onRetryRoles) { Text("Retry") }
+        }
+        if (isPresident) {
+            androidx.compose.material3.OutlinedButton(onClick = onReview, modifier = Modifier.fillMaxWidth()) {
+                Text("Review applications")
             }
         }
         // Each chip updates the selected value when clicked.
@@ -120,11 +135,12 @@ fun OrganizationPage(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 50.dp),
-                    enabled = repository.canApply(id),
+                    enabled = applicationsReady && rolesReady && repository.canApply(id),
                 ) {
                     Text(
                         text = when {
-                            repository.profile.studentId.isBlank() -> "Sign in to apply"
+                            !rolesReady -> "Loading organization membership"
+                            !applicationsReady -> "Applications unavailable — check Applications to retry"
                             repository.isMember(id) -> "Already a member"
                             !org.isRecruiting -> "Recruitment closed"
                             !repository.canApply(id) -> "Application already submitted"

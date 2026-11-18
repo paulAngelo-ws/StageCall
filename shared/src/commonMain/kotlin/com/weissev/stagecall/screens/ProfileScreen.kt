@@ -1,5 +1,6 @@
 package com.weissev.stagecall.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -9,7 +10,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material.icons.outlined.PersonOutline
@@ -31,10 +31,23 @@ import com.weissev.stagecall.components.StageCallCard
 import com.weissev.stagecall.components.organizationCardColors
 import com.weissev.stagecall.data.ApplicationStatus
 import com.weissev.stagecall.data.StageCallRepository
+import com.weissev.stagecall.data.ProfileStore
+import kotlinx.coroutines.launch
+import io.ktor.client.HttpClient
+import io.ktor.client.call.body
+import io.ktor.client.request.get
+import org.jetbrains.compose.resources.decodeToImageBitmap
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.layout.ContentScale
 
 @Composable
-fun ProfilePage(
+internal fun ProfilePage(
     repository: StageCallRepository,
+    accountEmail: String,
+    accountName: String,
+    accountPicture: String,
+    profileStore: ProfileStore,
+    onSignOut: () -> Unit,
     darkTheme: Boolean,
     onDarkThemeChange: (Boolean) -> Unit,
     onOpenOrganization: (String) -> Unit,
@@ -42,10 +55,17 @@ fun ProfilePage(
     onOpenApplications: () -> Unit,
 ) {
     var editing by remember { mutableStateOf(false) }
-    var showingAbout by remember { mutableStateOf(false) }
-    var name by remember { mutableStateOf("") }
-    var email by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf("") }
+    var bio by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+    val picture by produceState<ImageBitmap?>(null, accountPicture) {
+        if (accountPicture.startsWith("https://")) {
+            val http = HttpClient()
+            try { value = http.get(accountPicture).body<ByteArray>().decodeToImageBitmap() }
+            catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (_: Exception) { value = null }
+            finally { http.close() }
+        }
+    }
     var showAllOrganizations by remember { mutableStateOf(false) }
     val memberships = repository.members.filter {
         it.student.studentId == repository.profile.studentId && it.active
@@ -66,7 +86,7 @@ fun ProfilePage(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                repository.profile.name.ifBlank { "Guest" },
+                accountName.ifBlank { accountEmail.ifBlank { "Account" } },
                 modifier = Modifier.fillMaxWidth(),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
@@ -77,12 +97,11 @@ fun ProfilePage(
                     .background(MaterialTheme.colorScheme.primaryContainer),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(
-                    Icons.Outlined.PersonOutline,
-                    contentDescription = null,
-                    modifier = Modifier.size(48.dp),
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                )
+                if (picture != null) {
+                    Image(picture!!, contentDescription = "Google profile picture", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                } else {
+                    Icon(Icons.Outlined.PersonOutline, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                }
             }
             Row(Modifier.widthIn(max = 360.dp).fillMaxWidth().padding(vertical = 4.dp)) {
                 ProfileStat(memberships.size, "Organizations", Modifier.weight(1f)) {
@@ -91,48 +110,30 @@ fun ProfilePage(
                 ProfileStat(repository.bookmarks.size, "Saved", Modifier.weight(1f), onOpenDirectory)
                 ProfileStat(activeApplications, "Active applications", Modifier.weight(1f), onOpenApplications)
             }
-            Row(
-                modifier = Modifier.widthIn(max = 360.dp).fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            Button(
+                enabled = profileStore.loaded,
+                onClick = { bio = profileStore.bio; editing = true },
+                modifier = Modifier.widthIn(max = 360.dp).fillMaxWidth().height(36.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
             ) {
-                Button(
-                    enabled = repository.profile.studentId.isNotBlank(),
-                    onClick = {
-                        name = repository.profile.name
-                        email = repository.profile.email
-                        error = ""
-                        editing = true
-                    },
-                    modifier = Modifier.weight(1f).height(36.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                    ),
-                ) {
-                    Icon(Icons.Outlined.Edit, null, Modifier.size(16.dp))
-                    Text("Edit profile", Modifier.padding(start = 6.dp))
-                }
-                FilledTonalButton(
-                    enabled = repository.profile.studentId.isNotBlank(),
-                    onClick = { showingAbout = true },
-                    modifier = Modifier.weight(1f).height(36.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                    ),
-                ) {
-                    Text("About")
-                }
+                Icon(Icons.Outlined.Edit, null, Modifier.size(16.dp))
+                Text("Edit profile", Modifier.padding(start = 6.dp))
             }
             Text(
-                text = if (repository.profile.studentId.isBlank()) "Browsing as a guest" else "",
+                text = if (accountEmail.isNotBlank()) accountEmail else "Signed in with Google",
                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
             )
+            if (profileStore.bio.isNotBlank()) {
+                Text("\u201c${profileStore.bio}\u201d", modifier = Modifier.fillMaxWidth(),
+                    style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center, color = muted)
+            }
+            if (!profileStore.loaded && profileStore.error != null) {
+                Text(profileStore.error!!, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
+                TextButton(onClick = { scope.launch { profileStore.load() } }) { Text("Retry") }
+            }
         }
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -205,39 +206,11 @@ fun ProfilePage(
                     Switch(checked = darkTheme, onCheckedChange = null)
                 }
             }
+            OutlinedButton(
+                onClick = onSignOut,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+            ) { Text("Sign out") }
         }
-    }
-    if (showingAbout) {
-        AlertDialog(
-            onDismissRequest = { showingAbout = false },
-            title = { Text("About ${repository.profile.name}") },
-            text = {
-                Column(
-                    modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Student ID", style = MaterialTheme.typography.labelMedium, color = muted)
-                        Text(repository.profile.studentId, style = MaterialTheme.typography.bodyMedium)
-                    }
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Course / Year", style = MaterialTheme.typography.labelMedium, color = muted)
-                        Text("BS Information Technology · Year 2", style = MaterialTheme.typography.bodyMedium)
-                    }
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Email", style = MaterialTheme.typography.labelMedium, color = muted)
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            Icon(Icons.Outlined.Email, null, Modifier.size(18.dp), tint = muted)
-                            Text(repository.profile.email, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                        }
-                    }
-                }
-            },
-            confirmButton = { TextButton(onClick = { showingAbout = false }) { Text("Close") } },
-        )
     }
     if (editing) {
         AlertDialog(
@@ -245,16 +218,15 @@ fun ProfilePage(
             title = { Text("Edit profile") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(name, { name = it; error = "" }, Modifier.fillMaxWidth(), label = { Text("Name") }, singleLine = true)
-                    OutlinedTextField(email, { email = it; error = "" }, Modifier.fillMaxWidth(), label = { Text("Email") }, singleLine = true)
-                    if (error.isNotEmpty()) Text(error, color = MaterialTheme.colorScheme.error)
+                    OutlinedTextField(bio, { if (it.length <= 500) bio = it }, Modifier.fillMaxWidth(),
+                        label = { Text("Bio") }, supportingText = { Text("${bio.length}/500") }, minLines = 3)
+                    profileStore.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
-                    if (repository.updateProfile(name, email)) editing = false
-                    else error = "Enter a name and valid email address."
-                }) { Text("Save") }
+                TextButton(enabled = !profileStore.saving, onClick = {
+                    scope.launch { if (profileStore.save(bio)) editing = false }
+                }) { Text(if (profileStore.saving) "Saving..." else "Save") }
             },
             dismissButton = { TextButton(onClick = { editing = false }) { Text("Cancel") } },
         )

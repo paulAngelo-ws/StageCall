@@ -23,6 +23,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import com.weissev.stagecall.data.ApplicationStore
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -30,7 +33,9 @@ import com.weissev.stagecall.data.StageCallRepository
 
 // repository contains the data shared by all screens.
 @Composable
-fun ApplyPage(repository: StageCallRepository, id: String, onSubmitted: (Int) -> Unit) {
+internal fun ApplyPage(repository: StageCallRepository, id: String, store: ApplicationStore, onSubmitted: (Int) -> Unit) {
+    val scope = rememberCoroutineScope()
+    var studentNumber by remember(id) { mutableStateOf("") }
     var year by remember(id) { mutableStateOf("2nd Year") }
     var reason by remember(id) { mutableStateOf("") }
     var consent by remember(id) { mutableStateOf(false) }
@@ -63,10 +68,11 @@ fun ApplyPage(repository: StageCallRepository, id: String, onSubmitted: (Int) ->
         Text("Join the community.", style = MaterialTheme.typography.headlineSmall)
         Text("Tell the team a little about yourself.")
         OutlinedTextField(
-            repository.profile.studentId,
-            {},
-            label = { Text("Student ID (read-only)") },
-            readOnly = true,
+            studentNumber,
+            { studentNumber = it; error = "" },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Student ID") },
+            singleLine = true,
         )
         Text("Year level")
         // Each chip updates the selected value when clicked.
@@ -95,25 +101,33 @@ fun ApplyPage(repository: StageCallRepository, id: String, onSubmitted: (Int) ->
         Row {
             Checkbox(consent, { consent = it })
             Text(
-                "I agree to share my profile with the organization's officers for membership review."
+                "I agree to submit these details for membership review."
             )
         }
         if (error.isNotEmpty()) Text(error, color = MaterialTheme.colorScheme.error)
         Button(
             onClick = {
-                if (repository.submit(id, year, reason, consent))
-                    onSubmitted(repository.applications.last().id)
-                else error = "Enter a reason and agree to share your details."
+                if (studentNumber.isBlank() || reason.isBlank() || !consent) {
+                    error = "Enter your student ID and reason, and agree to share your details."
+                } else if (studentNumber.trim().length > 100 || reason.trim().length > 5000) {
+                    error = "Student ID or reason is too long."
+                } else {
+                    scope.launch {
+                        val applicationId = store.submit(id, studentNumber, year, reason)
+                        if (applicationId != null) onSubmitted(applicationId)
+                        else error = store.error.orEmpty()
+                    }
+                }
             },
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 50.dp),
-            enabled = repository.canApply(id),
+            enabled = !store.submitting && repository.canApply(id),
         ) {
-            Text(text = "Submit application")
+            Text(text = if (store.submitting) "Submitting..." else "Submit application")
         }
         Text(
-            "Review your details before submitting. Each organization accepts one application per student in this demo."
+            "Review your details before submitting. Each organization accepts one application per account."
         )
     }
 }

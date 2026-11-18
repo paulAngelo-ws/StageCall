@@ -65,7 +65,10 @@ internal class RepositoryPersistence(
         val bookmarks = repository.bookmarks.filter { id -> state.organizations.any { it.id == id } }
         // A storage failure must not hide a successful database response.
         val cacheSaved = saveCache(state, bookmarks)
-        repository.restore(state)
+        // Catalog refresh must not erase the authenticated user's application state.
+        val personal = repository.snapshot()
+        repository.restore(state.copy(profile = personal.profile, applications = personal.applications,
+            members = personal.members, notifications = personal.notifications))
         repository.bookmarks.addAll(bookmarks)
         hasData = true
         status = if (cacheSaved) "Loaded from Supabase" else "Loaded from Supabase - cache unavailable"

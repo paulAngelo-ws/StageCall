@@ -24,7 +24,11 @@ import com.weissev.stagecall.data.StageCallRepository
 // repository contains the data shared by all screens.
 @Composable
 fun ApplicationPage(repository: StageCallRepository, id: Int) {
-    val app = repository.applications.first { it.id == id }
+    val app = repository.applications.firstOrNull { it.id == id }
+    if (app == null) {
+        Text("This application is no longer available.", modifier = Modifier.padding(24.dp))
+        return
+    }
     // The screen scrolls vertically when its content is taller than the window.
     Column(
         modifier = Modifier
@@ -50,7 +54,7 @@ fun ApplicationPage(repository: StageCallRepository, id: Int) {
                 Text("Application status: ${app.status}")
                 Text(
                     if (app.status == ApplicationStatus.Pending)
-                        "The team is reviewing your application."
+                        "Your application has been submitted."
                     else app.decision.ifBlank { "Decision recorded." }
                 )
             }
@@ -66,7 +70,7 @@ fun ApplicationPage(repository: StageCallRepository, id: Int) {
                 Text("Application summary", style = MaterialTheme.typography.titleLarge)
                 Text(app.student.name)
                 Text(app.student.email)
-                Text("Student ID: ${app.student.studentId}")
+                Text("Student ID: ${app.studentNumber}")
                 Text("Year level: ${app.year}")
                 HorizontalDivider()
                 Text("Reason for joining")

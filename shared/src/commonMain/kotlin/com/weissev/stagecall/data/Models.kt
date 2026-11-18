@@ -27,6 +27,7 @@ data class MembershipApplication(
     val decision: String = "",
     val submittedAt: Instant = Clock.System.now(),
     val updatedAt: Instant? = null,
+    val studentNumber: String = "",
 )
 
 @Serializable

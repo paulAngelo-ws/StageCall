@@ -87,8 +87,8 @@ need to edit them to change a screen.
 5. Open Profile to see current memberships and switch between light and dark themes.
 
 Applications use Pending, Accepted, and Rejected statuses. Duplicate applications
-and reapplications after rejection are unavailable in this demo. Members-only posts
-are visible to accepted, active members. Events require a date, time, and location.
+and reapplications after rejection are unavailable in this demo. Accepted applications create memberships. Members-only posts are not yet connected to membership.
+Events require a date, time, and location.
 
 ## Run the existing tests
 
@@ -129,17 +129,26 @@ variables with the same names take precedence. Rebuild after changing the values
    `java -jar gradle/wrapper/gradle-wrapper.jar :shared:checkSupabaseConfig`.
 5. Rebuild and relaunch. For Android, install the newly built APK.
 
-**No sign-in is required. Do not enable anonymous sign-ins for this setup.**
-The app queries the public tables directly using the publishable key. It does not
-create Auth users or read/write private `stagecall_state` snapshots. Google login
-will be added separately. Until then, profile editing, membership applications,
-and bookmarks are disabled; the Profile screen shows Guest.
+## Configure Google login
+
+Google sign-in must be enabled in your own Supabase and Google Cloud projects:
+
+1. In Supabase, open **Authentication → Sign In / Providers → Google** and copy the callback URL shown there (normally `https://YOUR_PROJECT.supabase.co/auth/v1/callback`).
+2. In Google Cloud Console, configure the OAuth consent screen (branding, audience and support contact). While the app is in testing, add the Google accounts you will use as test users.
+3. Create an OAuth client of type **Web application**. Add the Supabase callback URL from step 1 to its **Authorized redirect URIs**. Copy the client ID and client secret.
+4. Back in Supabase's Google provider settings, enable Google and paste the client ID and secret, then save. Keep the secret in Supabase, never in this repository or the app.
+5. In Supabase **Authentication → URL Configuration**, add `stagecall://auth` to the redirect allow list for Android and iOS. For web, add the exact origin used to run the app (including port) and your production site URL. For desktop, add `http://localhost:*` (the SDK chooses a local port).
+6. Rebuild and launch the app, select **Continue with Google**, and approve the consent screen. Verify the user appears in Supabase **Authentication → Users**, restart the app to check session restoration, and use **Profile → Sign out** to test the signed-out screen.
+
+The Google account establishes a Supabase Auth session. The catalog remains public,
+profile editing remains disabled, and bookmarks are stored locally. Membership
+applications are stored per account after the SQL migration below is applied. Do not enable anonymous sign-ins.
 
 In the Table Editor, choose schema `public` and open `organizations` or
 `campus_posts`. Each organization or post is a real row with editable columns.
 Edit a name or post in Supabase; the app refreshes automatically every 30 seconds
 while it is open.
-The SQL Editor and Table Editor can manage data. Guest clients can only read
+The SQL Editor and Table Editor can manage data. Clients can only read
 organizations and public posts; RLS hides members-only posts and denies writes.
 No sample student profiles, memberships, or applications are exposed publicly.
 
@@ -163,7 +172,34 @@ public catalog cache can be displayed.
 
 ## Demo limitations
 
-No account login screen, file uploads, or device notifications are connected.
-Officer management screens are not part of the student interface. Repository
-operations for decisions and organization updates remain covered by logic tests;
-shared organization updates and role-based permissions still need implementation.
+File uploads and device notifications are not connected.
+Organization updates and other officer management screens are not connected.
+
+## Membership applications
+
+After running `supabase/setup.sql`, run the entire
+`supabase/migrations/202611180004_membership_applications.sql` file in the Supabase
+SQL Editor. Rebuild and install the app. Signed-in students can submit one application
+per organization, then see their own application and status across devices.
+The database enforces account ownership, prevents duplicate applications and rejects
+submissions when recruitment is closed. Student accounts cannot change decisions.
+
+Run `supabase/migrations/202611180005_organization_roles.sql` after the applications
+migration to enable organization roles and review. A project administrator assigns a
+president in the SQL Editor after that person has signed in at least once. Replace
+the sample organization ID and email below with the intended values:
+
+```sql
+insert into public.organization_memberships (organization_id, user_id, role)
+select '1', id, 'President' from auth.users where email = 'president@example.com'
+on conflict (organization_id, user_id) do update set role = excluded.role;
+```
+
+If the query inserts zero rows, check the email in Authentication → Users. The same
+person can be president in one organization and a member in another. Presidents can
+open the organization and select **Review applications** to accept or reject pending
+applications, optionally including a note. Accepting creates a membership; rejecting
+does not. The database validates the president's organization for each decision.
+Role changes and decisions refresh while the app is open; restart or retry if needed.
+The organization member count and members-only posts are still catalog data and do
+not yet update based on these memberships.

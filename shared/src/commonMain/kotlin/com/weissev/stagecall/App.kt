@@ -1,6 +1,10 @@
 package com.weissev.stagecall
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material3.Icon
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -13,6 +17,15 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.status.SessionStatus
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -26,6 +39,11 @@ import com.weissev.stagecall.components.NavigationBar
 import com.weissev.stagecall.components.StageCallTheme
 import com.weissev.stagecall.components.TopHeader
 import com.weissev.stagecall.data.StageCallRepository
+import com.weissev.stagecall.data.Student
+import com.weissev.stagecall.data.ApplicationStore
+import com.weissev.stagecall.data.OrganizationRoleStore
+import com.weissev.stagecall.screens.ReviewApplicationsPage
+import kotlinx.coroutines.delay
 import com.weissev.stagecall.data.RepositoryPersistence
 import com.weissev.stagecall.data.SupabaseConfig
 import com.weissev.stagecall.data.SupabaseStateStore
@@ -48,6 +66,7 @@ private enum class Screen {
     Status,
     Notifications,
     ApplicationHistory,
+    ReviewApplications,
 }
 
 private data class NotificationOrigin(
@@ -60,10 +79,62 @@ private data class NotificationOrigin(
 /** One shared entry point for Android, iOS, desktop and web. */
 @Composable
 fun App() {
-    val repository = remember { StageCallRepository() }
+    val client = AuthSession.client
+    if (client == null) {
+        StageCallTheme { LoginScreen("Supabase is not configured. Check local.properties and rebuild.", false) {} }
+        return
+    }
+    val status by client.auth.sessionStatus.collectAsState()
+    val scope = rememberCoroutineScope()
+    var authError by remember { mutableStateOf<String?>(null) }
+    when (status) {
+        is SessionStatus.Initializing -> {
+            StageCallTheme { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
+            return
+        }
+        is SessionStatus.Authenticated -> Unit
+        else -> {
+            StageCallTheme {
+                LoginScreen(authError, true) {
+                    scope.launch {
+                        authError = null
+                        try { AuthSession.signIn() } catch (e: Exception) { authError = e.message ?: "Could not start Google sign-in. Please try again." }
+                    }
+                }
+            }
+            return
+        }
+    }
+    val user = client.auth.currentUserOrNull()
+    val userId = user?.id.orEmpty()
+    val accountEmail = user?.email.orEmpty()
+    val accountName = user?.userMetadata?.get("full_name")?.jsonPrimitive?.contentOrNull.orEmpty()
+    val accountPicture = user?.userMetadata?.get("avatar_url")?.jsonPrimitive?.contentOrNull
+        ?: user?.userMetadata?.get("picture")?.jsonPrimitive?.contentOrNull.orEmpty()
+    val profileStore = remember(client, userId) { com.weissev.stagecall.data.ProfileStore(client, userId) }
+    LaunchedEffect(profileStore) { profileStore.load() }
+    val repository = remember(userId) { StageCallRepository() }
     val cache = rememberRepositoryCache()
     val remote = remember { if (SupabaseConfig.isConfigured) SupabaseStateStore() else null }
-    val persistence = remember(repository, cache, remote) { RepositoryPersistence(repository, cache, remote) }
+    val persistence = remember(repository, cache, remote) {
+        RepositoryPersistence(repository, cache, remote).also {
+            repository.setAccount(Student(accountName.ifBlank { accountEmail }, accountEmail, userId))
+        }
+    }
+    val applicationStore = remember(client, repository) { ApplicationStore(client, repository) }
+    val roleStore = remember(client, repository) { OrganizationRoleStore(client, repository) }
+    LaunchedEffect(roleStore) {
+        while (true) {
+            roleStore.refreshRoles()
+            delay(30_000)
+        }
+    }
+    LaunchedEffect(applicationStore) {
+        while (true) {
+            applicationStore.refresh()
+            delay(30_000)
+        }
+    }
     LaunchedEffect(persistence) {
         try {
             persistence.run()
@@ -102,7 +173,7 @@ fun App() {
         }
         page =
             when (page) {
-                Screen.Apply -> Screen.Organization
+                Screen.Apply, Screen.ReviewApplications -> Screen.Organization
                 else -> Screen.Main
             }
     }
@@ -115,9 +186,6 @@ fun App() {
                     containerColor = MaterialTheme.colorScheme.background,
                     topBar = {
                         Column(Modifier.statusBarsPadding()) {
-                            if (page != Screen.Main) {
-                                TextButton(onClick = { goBack() }) { Text("Back") }
-                            }
                             TopHeader(
                                 unreadCount = repository.unreadNotificationCount,
                                 onSearchClick = {
@@ -133,6 +201,19 @@ fun App() {
                                 page = Screen.Notifications
                             }
                             HorizontalDivider()
+                            if (page != Screen.Main) {
+                                TextButton(
+                                    onClick = { goBack() },
+                                    modifier = Modifier.padding(start = 12.dp, top = 4.dp, bottom = 4.dp),
+                                ) {
+                                    Text("Back")
+                                    Icon(
+                                        Icons.AutoMirrored.Filled.ArrowForward,
+                                        contentDescription = null,
+                                        modifier = Modifier.padding(start = 8.dp).size(18.dp),
+                                    )
+                                }
+                            }
                         }
                     },
                     bottomBar = {
@@ -180,16 +261,37 @@ fun App() {
                             Screen.Organization ->
                                 OrganizationPage(
                                     repository = repository,
+                                    applicationsReady = applicationStore.loaded,
+                                    rolesReady = roleStore.loaded,
+                                    roleError = roleStore.error,
+                                    isPresident = roleStore.roles[organizationId] == "President",
+                                    onRetryRoles = { scope.launch { roleStore.refreshRoles() } },
+                                    onReview = { page = Screen.ReviewApplications },
                                     id = organizationId,
                                     initialPostId = organizationPostId,
                                     onApply = { page = Screen.Apply },
                                 )
+                            Screen.ReviewApplications -> if (roleStore.loaded && roleStore.roles[organizationId] == "President") {
+                                ReviewApplicationsPage(
+                                    store = roleStore,
+                                    organizationId = organizationId,
+                                    organizationName = repository.organizations.firstOrNull { it.id == organizationId }?.name.orEmpty(),
+                                )
+                            } else {
+                                Column(Modifier.padding(24.dp)) {
+                                    Text(roleStore.error ?: "You do not have permission to review applications for this organization.")
+                                    if (roleStore.error != null) TextButton(onClick = { scope.launch { roleStore.refreshRoles() } }) { Text("Retry") }
+                                }
+                            }
                             Screen.Apply ->
                                 ApplyPage(
                                     repository = repository,
                                     id = organizationId,
+                                    store = applicationStore,
                                     onSubmitted = { id ->
                                         applicationId = id
+                                        selectedTab = 2
+                                        notificationDetailOpen = false
                                         page = Screen.Status
                                     },
                                 )
@@ -223,8 +325,15 @@ fun App() {
                                             onOpenOrganization = { id -> openOrganization(id) },
                                         )
                                     2 ->
-                                        ApplicationsPage(
+                                        if (!applicationStore.loaded) {
+                                            Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center) {
+                                                Text(applicationStore.error ?: "Loading applications...")
+                                                if (applicationStore.error != null) TextButton(onClick = { scope.launch { applicationStore.refresh() } }) { Text("Retry") }
+                                            }
+                                        } else ApplicationsPage(
                                             repository = repository,
+                                            refreshError = applicationStore.error,
+                                            onRetry = { scope.launch { applicationStore.refresh() } },
                                             onOpenHistory = { page = Screen.ApplicationHistory },
                                             onOpenApplication = { id ->
                                                 applicationId = id
@@ -236,6 +345,11 @@ fun App() {
                                     3 ->
                                         ProfilePage(
                                             repository = repository,
+                                            accountEmail = accountEmail,
+                                            accountName = accountName,
+                                            accountPicture = accountPicture,
+                                            profileStore = profileStore,
+                                            onSignOut = { scope.launch { try { AuthSession.signOut() } catch (e: Exception) { dialog = e.message ?: "Could not sign out." } } },
                                             darkTheme = themeSettings.isDarkTheme,
                                             onDarkThemeChange = themeSettings::updateDarkTheme,
                                             onOpenOrganization = { id -> openOrganization(id) },
@@ -255,6 +369,19 @@ fun App() {
                 text = { Text(dialog.orEmpty()) },
                 confirmButton = { TextButton(onClick = { dialog = null }) { Text("Close") } },
             )
+        }
+    }
+}
+
+
+@Composable
+private fun LoginScreen(error: String?, enabled: Boolean, onSignIn: () -> Unit) {
+    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Column(Modifier.fillMaxSize().padding(32.dp), verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("StageCall", style = MaterialTheme.typography.headlineLarge)
+            Text("Discover your campus community", modifier = Modifier.padding(top = 8.dp, bottom = 24.dp), style = MaterialTheme.typography.bodyLarge)
+            Button(onClick = onSignIn, enabled = enabled) { Text("Continue with Google") }
+            if (error != null) Text(error, modifier = Modifier.padding(top = 16.dp), color = MaterialTheme.colorScheme.error)
         }
     }
 }

@@ -29,6 +29,15 @@ class StageCallRepository {
     val organizations = mutableStateListOf<Organization>()
     var profile by mutableStateOf(Student("", "", ""))
         private set
+    internal fun setAccount(student: Student) { profile = student }
+    internal fun setApplications(value: List<MembershipApplication>) {
+        applications.clear()
+        applications.addAll(value)
+    }
+    internal fun setMemberships(value: List<Member>) {
+        members.clear()
+        members.addAll(value)
+    }
     val bookmarks = mutableStateListOf<String>()
     internal var onBookmarksChanged: () -> Unit = {}
     val applications = mutableStateListOf<MembershipApplication>()

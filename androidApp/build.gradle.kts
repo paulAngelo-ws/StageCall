@@ -9,6 +9,7 @@ kotlin { compilerOptions { jvmTarget = JvmTarget.JVM_11 } }
 
 dependencies {
     implementation(project(":shared"))
+    implementation(libs.supabase.auth)
 
     implementation(libs.androidx.activity.compose)
 

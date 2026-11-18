@@ -52,7 +52,10 @@ fun ApplicationsPage(
     onOpenDirectory: () -> Unit,
     onOpenOrganization: (String) -> Unit,
     onOpenHistory: () -> Unit,
-) = ApplicationsContent(repository, onOpenApplication, onOpenDirectory, onOpenOrganization, onOpenHistory)
+    refreshError: String? = null,
+    onRetry: () -> Unit = {},
+) = ApplicationsContent(repository, onOpenApplication, onOpenDirectory, onOpenOrganization, onOpenHistory,
+    refreshError = refreshError, onRetry = onRetry)
 
 @Composable
 fun ApplicationHistoryPage(
@@ -70,6 +73,8 @@ private fun ApplicationsContent(
     onOpenOrganization: (String) -> Unit,
     onOpenHistory: (() -> Unit)? = null,
     historyOnly: Boolean = false,
+    refreshError: String? = null,
+    onRetry: () -> Unit = {},
 ) {
     val userApplications = repository.applications.filter {
         it.student.studentId == repository.profile.studentId
@@ -112,6 +117,10 @@ private fun ApplicationsContent(
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        if (refreshError != null) {
+            Text("Could not refresh applications. Showing the last loaded results.", color = MaterialTheme.colorScheme.error)
+            OutlinedButton(onClick = onRetry) { Text("Retry") }
+        }
         val apps =
             userApplications.filter { application ->
                 !historyOnly || application.status != ApplicationStatus.Pending
@@ -221,7 +230,7 @@ private fun ApplicationsContent(
                     }
                     Text(
                         if (app.status == ApplicationStatus.Pending)
-                            "The team is reviewing your application."
+                            "Your application has been submitted."
                         else
                             app.decision.ifBlank {
                                 if (app.status == ApplicationStatus.Accepted)
