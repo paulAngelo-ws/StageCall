@@ -35,6 +35,7 @@ create policy "Applicants submit own applications" on public.membership_applicat
 
 -- Definer functions are necessary because presidents may not otherwise read other
 -- applicants' rows. Each function verifies the caller's role for this organization.
+-- OrganizationRoleStore.kt calls this with the organization ID and passes the returned rows to ReviewApplicationsScreen.kt.
 create or replace function public.review_organization_applications(p_organization_id text)
 returns setof public.membership_applications
 language plpgsql security definer set search_path = '' as $$
@@ -51,6 +52,7 @@ begin
 end;
 $$;
 
+-- OrganizationRoleStore.kt sends the confirmed decision. Accepted rows also create a membership for subsequent membership checks.
 create or replace function public.decide_organization_application(
     p_organization_id text, p_application_id integer, p_status text, p_decision text default ''
 ) returns void language plpgsql security definer set search_path = '' as $$

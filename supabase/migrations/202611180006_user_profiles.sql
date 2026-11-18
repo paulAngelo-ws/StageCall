@@ -1,5 +1,6 @@
 -- Run after migrations 004 and 005 in the Supabase SQL Editor.
 begin;
+-- ProfileStore.kt reads this row. Migration 202611180008_profile_preferences.sql extends it with theme and bookmark preferences.
 create table if not exists public.user_profiles (
     user_id uuid primary key references auth.users(id) on delete cascade,
     bio text not null default '' check (char_length(bio) <= 500)

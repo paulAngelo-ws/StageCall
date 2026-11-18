@@ -1,29 +1,29 @@
 package com.weissev.stagecall
 
-import com.weissev.stagecall.data.RepositorySnapshot
-import com.weissev.stagecall.data.Organization
 import com.weissev.stagecall.data.CampusPost
+import com.weissev.stagecall.data.Organization
+import com.weissev.stagecall.data.RepositorySnapshot
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import java.nio.file.Files
 import java.nio.file.Path
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.decodeFromJsonElement
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.time.Instant
 
+// Compare 202611180003_public_catalog.sql with the data models and DemoFixtures.kt.
 class SqlSeedTest {
     @Test
-    fun publicSetupSeedsCatalogRowsWithoutPersonalData() {
-        val root = sequenceOf(Path.of("."), Path.of(".."))
-            .first { Files.exists(it.resolve("supabase/setup.sql")) }
-        val setup = Files.readString(root.resolve("supabase/setup.sql"))
-        val migration = Files.readString(root.resolve("supabase/migrations/202611180003_public_catalog.sql"))
-        assertEquals(migration, setup)
+    fun publicCatalogMigrationSeedsRowsWithoutPersonalData() {
+        val relative = Path.of("supabase/migrations/202611180003_public_catalog.sql")
+        val path = sequenceOf(relative, Path.of("..").resolve(relative))
+            .first { Files.exists(it) }
+        val sql = Files.readString(path)
         val delimiter = "\$catalog_seed\$"
-        val catalog = Json.parseToJsonElement(setup.substringAfter(delimiter).substringBefore(delimiter)).jsonObject
+        val catalog = Json.parseToJsonElement(sql.substringAfter(delimiter).substringBefore(delimiter)).jsonObject
         assertEquals(setOf("organizations", "posts"), catalog.keys)
         val organizations = catalog.getValue("organizations").jsonArray.map {
             Json.decodeFromJsonElement<Organization>(it)

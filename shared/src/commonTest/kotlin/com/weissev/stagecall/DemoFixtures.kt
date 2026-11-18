@@ -3,6 +3,7 @@ package com.weissev.stagecall
 import com.weissev.stagecall.data.*
 
 // Test-only fixtures. These records are not included in any application build.
+// Give the workflow and persistence tests a reproducible StageCallRepository.kt with fixtures already loaded.
 internal fun populatedRepository(): StageCallRepository {
     val organizations = ubSoitOrganizations
     val profile = Student("Alex Morgan", "alex.morgan@university.edu", "2024-00128")

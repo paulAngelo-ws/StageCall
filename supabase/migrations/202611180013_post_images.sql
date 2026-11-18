@@ -1,4 +1,5 @@
 begin;
+-- OrganizationRoleStore.kt saves the upload path with a post. FeedScreen.kt passes that path to MediaCache.kt when a card displays it.
 alter table public.campus_posts add column if not exists image_path text;
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('post-images', 'post-images', false, 5242880, array['image/jpeg', 'image/png'])
@@ -22,6 +23,7 @@ using (bucket_id = 'post-images' and exists (
 ));
 
 drop function if exists public.create_organization_post(text, text, text, text, text, boolean);
+-- Return the inserted post to OrganizationRoleStore.kt so it can appear immediately in the app.
 create or replace function public.create_organization_post(
     p_organization_id text, p_title text, p_message text, p_category text,
     p_schedule text, p_members_only boolean, p_image_path text

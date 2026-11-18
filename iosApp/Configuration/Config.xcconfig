@@ -1,5 +1,6 @@
 TEAM_ID=
 
+// project.pbxproj uses these settings for the iOS bundle name, identifier, and version.
 PRODUCT_NAME=StageCall
 PRODUCT_BUNDLE_IDENTIFIER=com.weissev.stagecall.StageCall$(TEAM_ID)
 

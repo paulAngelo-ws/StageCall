@@ -1,5 +1,6 @@
 -- Limit new submissions while allowing historical applications to be reviewed.
 begin;
+-- The database checks submissions from ApplicationStore.kt even if a client skips the form’s validation.
 create or replace function public.check_application_text_limits()
 returns trigger language plpgsql set search_path = '' as $$
 begin

@@ -8,24 +8,29 @@ import java.nio.file.StandardCopyOption
 import java.nio.file.AtomicMoveNotSupportedException
 
 @Composable
-internal actual fun rememberRepositoryCache(): RepositoryCache = remember {
-    // Preferences has a small per-value limit; snapshots belong in a file.
-    val directory = Path.of(System.getProperty("user.home"), ".stagecall")
-    val target = directory.resolve("state-v1.json")
-    object : RepositoryCache {
-        override fun read(): String? = if (Files.exists(target)) Files.readString(target) else null
-        override fun write(value: String) {
-            Files.createDirectories(directory)
-            val temporary = Files.createTempFile(directory, "state-", ".tmp")
-            try {
-                Files.writeString(temporary, value)
+internal actual fun rememberCacheStorage(): CacheStorage = remember {
+    CacheStorage { key ->
+        // Preferences has a small per-value limit; snapshots belong in a file.
+        val directory = Path.of(System.getProperty("user.home"), ".stagecall")
+        // Resolve the key from RepositoryCache.kt to its own desktop file. Use the existing name for the legacy catalog.
+        val target = directory.resolve(if (key == "state") "state-v1.json" else "$key.json")
+        object : RepositoryCache {
+            override fun read(): String? = if (Files.exists(target)) Files.readString(target) else null
+            override fun remove() { Files.deleteIfExists(target) }
+            override fun write(value: String) {
+                Files.createDirectories(directory) // Create the cache folder on the first save.
+                // Write a temporary file before replacing the saved copy so a partial write does not corrupt the cache.
+                val temporary = Files.createTempFile(directory, "state-", ".tmp")
                 try {
-                    Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
-                } catch (_: AtomicMoveNotSupportedException) {
-                    Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING)
+                    Files.writeString(temporary, value)
+                    try {
+                        Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+                    } catch (_: AtomicMoveNotSupportedException) {
+                        Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING)
+                    }
+                } finally {
+                    Files.deleteIfExists(temporary) // Clean up the temporary file after a successful or failed write.
                 }
-            } finally {
-                Files.deleteIfExists(temporary)
             }
         }
     }

@@ -4,6 +4,7 @@ alter table public.user_profiles add column if not exists dark_theme boolean not
 alter table public.user_profiles add column if not exists bookmarks text[] not null default '{}';
 
 -- Update only the supplied fields so changes to a bio and preferences do not overwrite each other.
+-- ProfileStore.kt calls this with the account ID and whichever field the user just changed.
 create or replace function public.update_own_profile(
     p_user_id uuid, p_bio text default null, p_dark_theme boolean default null, p_bookmarks text[] default null
 ) returns void language plpgsql security invoker set search_path = '' as $$

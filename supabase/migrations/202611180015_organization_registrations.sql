@@ -1,5 +1,6 @@
 begin;
 
+-- OrganizationRegistrationStore.kt reads this table to decide whether to show the review queue.
 create table public.stagecall_admins (
     user_id uuid primary key references auth.users(id) on delete cascade
 );
@@ -9,6 +10,7 @@ grant select on public.stagecall_admins to authenticated;
 create policy "Admins read own role" on public.stagecall_admins
     for select to authenticated using (user_id = (select auth.uid()));
 
+-- OrganizationRegistrationStore.kt sends registration drafts here. Approving one can add an organization to the catalog.
 create table public.organization_registrations (
     id integer generated always as identity primary key,
     applicant_id uuid not null default auth.uid() references auth.users(id) on delete cascade,

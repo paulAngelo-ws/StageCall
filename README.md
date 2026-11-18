@@ -21,11 +21,26 @@ The project uses the Gradle wrapper and a Java 21 Gradle toolchain. Android buil
 ./gradlew :webApp:wasmJsBrowserDevelopmentRun
 ```
 
-For iOS, open `iosApp` in Xcode. Platform folders provide startup code; the shared UI and logic live in `shared`.
+For iOS, open `iosApp` in Xcode.
+
+## Project layout
+
+- `shared/src/commonMain/kotlin/com/weissev/stagecall/` contains the shared app entry point, `App.kt`, with feature screens under `ui/`, repositories and models under `data/`, and Supabase stores under `data/remote/`.
+- Platform source sets in `shared/src/` implement catalog caching. Shared behavior tests live in `shared/src/commonTest/`.
+- `androidApp/`, `desktopApp/`, `webApp/`, and `iosApp/` contain platform entry points and packaging.
+- `supabase/migrations/` contains numbered database changes. `supabase/admin/` contains scripts intended for manual administration.
+
+## Follow the data through the app
+
+- **Signing in** follows the callback from `LoginScreen.kt` through `App.kt` to `AuthSession.kt`. Android handles the return URL in `MainActivity.kt`. iOS sends it from `iOSApp.swift` to `MainViewController.kt`.
+- **Loading the feed** starts in `SupabaseStateStore.kt`. `CollectionCache.kt` gives migration 017 the saved row versions and merges the returned changes. `RepositoryPersistence.kt` then updates `StageCallRepository.kt`, which supplies the posts to `FeedScreen.kt`.
+- **Submitting an application** sends the form from `ApplyScreen.kt` to `ApplicationStore.kt`. The store updates `StageCallRepository.kt` and returns the ID. `App.kt` sends that ID to `ApplicationStatusScreen.kt`.
+- **Loading images** sends a post’s storage path from `FeedScreen.kt` or a Google photo URL from `ProfileScreen.kt` to `MediaCache.kt`. The platform implementations of `RepositoryCache.kt` handle local storage.
+- **Packaging** uses the Android drawable and mipmap resources referenced by `AndroidManifest.xml`. Xcode uses the images listed in `Assets.xcassets` and the settings in `Config.xcconfig` and `Info.plist`.
 
 ## Set up Supabase
 
-1. Create a Supabase project. Run `supabase/setup.sql` in its SQL Editor to create and seed the public catalog.
+1. Create a Supabase project. Run `supabase/migrations/202611180003_public_catalog.sql` in its SQL Editor to create and seed the public catalog.
 2. Run these files in order in the SQL Editor:
    - `supabase/migrations/202611180004_membership_applications.sql`
    - `supabase/migrations/202611180005_organization_roles.sql`
@@ -40,6 +55,7 @@ For iOS, open `iosApp` in Xcode. Platform folders provide startup code; the shar
    - `supabase/migrations/202611180014_organization_notifications.sql`
    - `supabase/migrations/202611180015_organization_registrations.sql`
    - `supabase/migrations/202611180016_allow_admin_registration_review.sql`
+   - `supabase/migrations/202611180017_incremental_sync.sql`
 3. Copy the entries from `local.properties.example` to the root `local.properties`, keeping any existing `sdk.dir` entry:
 
    ```properties
@@ -51,7 +67,7 @@ For iOS, open `iosApp` in Xcode. Platform folders provide startup code; the shar
 
 Use a publishable key or legacy `anon` key, never a secret or `service_role` key. Client credentials are embedded in the app; database row level security (RLS) controls access. `local.properties` is ignored by Git, and nonblank environment variables with the same names take precedence.
 
-`setup.sql` and migration `202611180003_public_catalog.sql` provide the same catalog setup; use either, not both as separate steps. The setup is safe to rerun and preserves existing catalog values. Migrations `001` and `002` belong to an earlier prototype and are not required for a new setup. The catalog seed provides five organizations and three campus posts.
+Migration `003` is safe to rerun and preserves existing catalog values. Migrations `001` and `002` belong to an earlier prototype and are not required for a new setup. The catalog seed provides five organizations and three campus posts.
 
 ### Google sign-in
 
@@ -104,7 +120,7 @@ The database prevents duplicate applications and closed-recruitment submissions.
 
 ## Data and limitations
 
-The catalog is read from Supabase and refreshed approximately every 30 seconds. Organization presidents can publish public or members-only posts from their organization's page; the database checks their role for that specific organization. Members-only posts are available to that organization's members and are not saved in the public cache. A verified public catalog cache can be used after a failed read; an initial failure shows **No database data loaded**. The cache uses Android preferences, a desktop file in `~/.stagecall/`, iOS user defaults, or browser local storage. Bookmarks, theme settings, applications, memberships, and the profile bio are tied to the signed-in account; the bio is limited to 500 characters.
+StageCall opens the saved public catalog and the signed-in account’s saved profile, preferences, and applications while it syncs with Supabase. With migration 017 applied, refreshes download new or changed rows and remove rows that have been deleted or are no longer visible. Members-only posts and notifications are checked against current access before they are displayed. Recently viewed post images and profile photos are stored on the device subject to available storage. A failed refresh can still show the saved public catalog and the account’s own saved data.
 
 The in-app notification feed refreshes approximately every 10 seconds while the app is open. It includes public posts, members-only posts from organizations the user belongs to, organization profile changes, and changes to application availability. Read status is saved per account. Existing posts are included when migration 014 is applied; earlier organization changes are not backfilled.
 

@@ -1,3 +1,4 @@
+// Declare module plugin versions from libs.versions.toml once. The modules apply the plugins where they need them.
 plugins {
     alias(libs.plugins.kotlinSerialization) apply false
     // this is necessary to avoid the plugins to be loaded multiple times

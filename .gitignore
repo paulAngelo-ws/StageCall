@@ -4,6 +4,7 @@
 **/build/
 xcuserdata
 !src/**/build/
+# The root local.properties supplies machine settings to shared/build.gradle.kts. Keep each developer’s copy out of Git.
 local.properties
 .idea
 .DS_Store

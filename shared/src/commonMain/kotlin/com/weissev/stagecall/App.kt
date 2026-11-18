@@ -1,23 +1,19 @@
 package com.weissev.stagecall
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.TheaterComedy
-import androidx.compose.material3.Icon
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -25,61 +21,62 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.Button
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.rememberCoroutineScope
-import kotlinx.coroutines.launch
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.contentOrNull
-import io.github.jan.supabase.auth.auth
-import io.github.jan.supabase.auth.status.SessionStatus
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.key
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.scale
-import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.weissev.stagecall.components.NavigationBar
-import com.weissev.stagecall.components.StageCallTheme
-import com.weissev.stagecall.components.TopHeader
-import com.weissev.stagecall.components.StatusPanel
+import com.weissev.stagecall.data.RepositoryPersistence
 import com.weissev.stagecall.data.StageCallRepository
 import com.weissev.stagecall.data.Student
-import com.weissev.stagecall.data.ApplicationStore
-import com.weissev.stagecall.data.OrganizationRegistrationStore
-import com.weissev.stagecall.data.OrganizationRoleStore
-import com.weissev.stagecall.data.NotificationStore
-import com.weissev.stagecall.screens.ReviewApplicationsPage
-import kotlinx.coroutines.delay
-import com.weissev.stagecall.data.RepositoryPersistence
-import com.weissev.stagecall.data.SupabaseConfig
-import com.weissev.stagecall.data.SupabaseStateStore
+import com.weissev.stagecall.data.auth.AuthSession
 import com.weissev.stagecall.data.rememberRepositoryCache
-import com.weissev.stagecall.screens.ApplicationPage
-import com.weissev.stagecall.screens.ApplicationsPage
-import com.weissev.stagecall.screens.ApplicationHistoryPage
-import com.weissev.stagecall.screens.ApplyPage
-import com.weissev.stagecall.screens.DirectoryPage
-import com.weissev.stagecall.screens.FeedPage
-import com.weissev.stagecall.screens.OrganizationPage
-import com.weissev.stagecall.screens.OrganizationRegistrationPage
-import com.weissev.stagecall.screens.OrganizationRegistrationDetailsPage
-import com.weissev.stagecall.screens.OrganizationRegistrationReviewPage
-import com.weissev.stagecall.screens.ProfilePage
-import com.weissev.stagecall.screens.NotificationsPage
+import com.weissev.stagecall.data.rememberCacheStorage
+import com.weissev.stagecall.data.remote.ApplicationStore
+import com.weissev.stagecall.data.remote.NotificationStore
+import com.weissev.stagecall.data.remote.LocalMediaCache
+import com.weissev.stagecall.data.remote.MediaCache
+import com.weissev.stagecall.data.remote.OrganizationRegistrationStore
+import com.weissev.stagecall.data.remote.OrganizationRoleStore
+import com.weissev.stagecall.data.remote.ProfileStore
+import com.weissev.stagecall.data.remote.cacheProjectKey
+import com.weissev.stagecall.data.remote.rememberCollectionCache
+import com.weissev.stagecall.data.remote.SupabaseStateStore
+import com.weissev.stagecall.ui.applications.ApplicationHistoryPage
+import com.weissev.stagecall.ui.applications.ApplicationPage
+import com.weissev.stagecall.ui.applications.ApplicationsPage
+import com.weissev.stagecall.ui.applications.ApplyPage
+import com.weissev.stagecall.ui.applications.OrganizationRegistrationDetailsPage
+import com.weissev.stagecall.ui.applications.ReviewApplicationsPage
+import com.weissev.stagecall.ui.auth.LoginScreen
+import com.weissev.stagecall.ui.components.NavigationBar
+import com.weissev.stagecall.ui.components.StageCallLoadingScreen
+import com.weissev.stagecall.ui.components.StatusPanel
+import com.weissev.stagecall.ui.components.TopHeader
+import com.weissev.stagecall.ui.feed.FeedPage
+import com.weissev.stagecall.ui.notifications.NotificationsPage
+import com.weissev.stagecall.ui.organizations.DirectoryPage
+import com.weissev.stagecall.ui.organizations.OrganizationPage
+import com.weissev.stagecall.ui.profile.ProfilePage
+import com.weissev.stagecall.ui.registrations.OrganizationRegistrationPage
+import com.weissev.stagecall.ui.registrations.OrganizationRegistrationReviewPage
+import com.weissev.stagecall.ui.theme.StageCallTheme
+import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.status.SessionStatus
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
 
 // Named pages prevent spelling mistakes when navigating between screens.
 private enum class Screen {
@@ -105,18 +102,19 @@ private data class NotificationOrigin(
 /** One shared entry point for Android, iOS, desktop and web. */
 @Composable
 fun App() {
+    // AuthSession.kt owns the Supabase client. LoginScreen.kt gets the sign-in callback and any error to display.
     val client = AuthSession.client
     if (client == null) {
         StageCallTheme { LoginScreen("Supabase is not configured. Check local.properties and rebuild.", false) {} }
         return
     }
-    val status by client.auth.sessionStatus.collectAsState()
+    val status by client.auth.sessionStatus.collectAsState() // Let Compose redraw when AuthSession.kt reports a session change.
     val scope = rememberCoroutineScope()
     var authError by remember { mutableStateOf<String?>(null) }
     var signingIn by remember { mutableStateOf(false) }
     when (status) {
         is SessionStatus.Initializing -> {
-            StageCallTheme { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
+            StageCallLoadingScreen("Restoring your session…") // StageCallLoadingScreen.kt displays this while sign-in state is being restored.
             return
         }
         is SessionStatus.Authenticated -> Unit
@@ -138,7 +136,7 @@ fun App() {
     val userId = user?.id.orEmpty()
     val accountEmail = user?.email.orEmpty()
     val emailDomain = accountEmail.substringAfter('@', "").lowercase()
-    if (accountEmail.count { it == '@' } != 1 || accountEmail.substringBefore('@').isEmpty() ||
+    if (userId.isBlank() || accountEmail.count { it == '@' } != 1 || accountEmail.substringBefore('@').isEmpty() ||
         !(emailDomain == "ubaguio.edu" || emailDomain.endsWith(".ubaguio.edu"))) {
         StageCallTheme {
             Column(Modifier.fillMaxSize().padding(32.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
@@ -152,16 +150,38 @@ fun App() {
     val accountName = user?.userMetadata?.get("full_name")?.jsonPrimitive?.contentOrNull.orEmpty()
     val accountPicture = user?.userMetadata?.get("avatar_url")?.jsonPrimitive?.contentOrNull
         ?: user?.userMetadata?.get("picture")?.jsonPrimitive?.contentOrNull.orEmpty()
-    val profileStore = remember(client, userId) { com.weissev.stagecall.data.ProfileStore(client, userId) }
-    LaunchedEffect(profileStore) { profileStore.load() }
-    if (!profileStore.loaded) {
-        StageCallTheme {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                if (profileStore.loading || profileStore.error == null) {
-                    StatusPanel("Loading your profile…", loading = true)
-                } else {
+    // Keep the screens, stores, and image cache tied to this account when someone switches users.
+    key(userId) { // Start fresh screen state when another account signs in.
+        val storage = rememberCacheStorage()
+        val media = remember(client, storage) { MediaCache(client, userId, storage) }
+        CompositionLocalProvider(LocalMediaCache provides media) {
+            SignedInApp(client, userId, accountEmail, accountName, accountPicture)
+        }
+    }
+}
+
+@Composable
+private fun SignedInApp(
+    client: SupabaseClient,
+    userId: String,
+    accountEmail: String,
+    accountName: String,
+    accountPicture: String,
+) {
+    val scope = rememberCoroutineScope()
+    // ProfileStore.kt exposes saved preferences first, then checks for changes using CollectionCache.kt.
+    val profileCache = rememberCollectionCache(client, userId, "profile")
+    val profileStore = remember(client, userId, profileCache) { ProfileStore(client, userId, profileCache) }
+    LaunchedEffect(profileStore) { profileStore.load() } // Ask ProfileStore.kt for the latest profile once for this store.
+    if (!profileStore.loaded) { // Wait here only if ProfileStore.kt has no usable profile yet.
+        val error = profileStore.error
+        if (profileStore.loading || error == null) {
+            StageCallLoadingScreen("Loading your profile…")
+        } else {
+            StageCallTheme {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        StatusPanel(profileStore.error!!, isError = true, actionLabel = "Retry", onAction = { scope.launch { profileStore.load() } })
+                        StatusPanel(error, isError = true, actionLabel = "Retry", onAction = { scope.launch { profileStore.load() } })
                         TextButton(onClick = { scope.launch { AuthSession.signOut() } }) { Text("Sign out") }
                     }
                 }
@@ -172,10 +192,13 @@ fun App() {
     val snackbarHost = remember(userId) { SnackbarHostState() }
     fun showSuccess(message: String) { scope.launch { snackbarHost.showSnackbar(message) } }
     var preferenceError by remember(userId) { mutableStateOf<String?>(null) }
-    var darkTheme by remember(userId) { mutableStateOf(profileStore.darkTheme) }
+    val darkTheme = profileStore.darkTheme
     val repository = remember(userId) { StageCallRepository() }
-    val cache = rememberRepositoryCache()
-    val remote = remember(userId) { if (SupabaseConfig.isConfigured) SupabaseStateStore() else null }
+    val cache = rememberRepositoryCache("catalog-$cacheProjectKey")
+    val organizations = rememberCollectionCache(client, userId, "organizations", shared = true)
+    val publicPosts = rememberCollectionCache(client, userId, "public_posts", shared = true)
+    // SupabaseStateStore.kt reads catalog rows. RepositoryPersistence.kt restores them into StageCallRepository.kt.
+    val remote = remember(client, organizations, publicPosts) { SupabaseStateStore(client, organizations, publicPosts) }
     val persistence = remember(repository, cache, remote) {
         RepositoryPersistence(repository, cache, remote).also {
             repository.setAccount(Student(accountName.ifBlank { accountEmail }, accountEmail, userId))
@@ -185,7 +208,7 @@ fun App() {
         repository.bookmarks.clear()
         repository.bookmarks.addAll(profileStore.bookmarks)
         repository.onBookmarksChanged = {
-            val requested = repository.bookmarks.toList()
+            val requested = repository.bookmarks.toList() // Copy the current bookmarks before sending them to ProfileStore.kt.
             scope.launch {
                 if (!profileStore.saveBookmarks(requested)) {
                     if (repository.bookmarks.toList() == requested) {
@@ -197,26 +220,45 @@ fun App() {
             }
         }
     }
-    val applicationStore = remember(client, repository) { ApplicationStore(client, repository) }
-    val roleStore = remember(client, repository) { OrganizationRoleStore(client, repository) }
-    val registrationStore = remember(client, userId) { OrganizationRegistrationStore(client, userId) }
-    val notificationStore = remember(client, userId) { NotificationStore(client) }
+    // Apply preferences from ProfileStore.kt without replacing bookmark taps that are still being saved.
+    var confirmedBookmarks by remember(repository) { mutableStateOf(profileStore.bookmarks) }
+    LaunchedEffect(repository, profileStore.bookmarks) {
+        val saved = profileStore.bookmarks
+        if (saved != confirmedBookmarks && repository.bookmarks.toList() == confirmedBookmarks) { // Only apply server changes if there are no newer local taps to keep.
+            repository.bookmarks.clear()
+            repository.bookmarks.addAll(saved)
+        }
+        confirmedBookmarks = saved
+    }
+    val applications = rememberCollectionCache(client, userId, "applications")
+    val memberships = rememberCollectionCache(client, userId, "memberships")
+    val memberPosts = rememberCollectionCache(client, userId, "member_posts")
+    val registrations = rememberCollectionCache(client, userId, "registrations")
+    val notifications = rememberCollectionCache(client, userId, "notifications")
+    // These stores give the screens observable data. ApplicationStore.kt and OrganizationRoleStore.kt also update StageCallRepository.kt.
+    val applicationStore = remember(client, repository, applications) { ApplicationStore(client, repository, applications) }
+    val roleStore = remember(client, repository, memberships, memberPosts) {
+        OrganizationRoleStore(client, repository, memberships, memberPosts)
+    }
+    val registrationStore = remember(client, userId, registrations) { OrganizationRegistrationStore(client, userId, registrations) }
+    val notificationStore = remember(client, notifications) { NotificationStore(client, notifications) }
+    // The app starts background refreshes here. Each store publishes its results to the screens that read it.
     LaunchedEffect(notificationStore) {
         while (true) {
-            notificationStore.refresh()
+            notificationStore.refresh() // NotificationStore.kt updates the unread count and list.
             delay(10_000)
         }
     }
     LaunchedEffect(roleStore) {
         while (true) {
-            roleStore.refreshRoles()
-            if (roleStore.loaded) roleStore.refreshMemberPosts()
+            roleStore.refreshRoles() // OrganizationRoleStore.kt checks this student’s current roles.
+            if (roleStore.loaded) roleStore.refreshMemberPosts() // Check member posts only after the role check succeeds.
             delay(30_000)
         }
     }
     LaunchedEffect(applicationStore) {
         while (true) {
-            applicationStore.refresh()
+            applicationStore.refresh() // ApplicationStore.kt updates the requests displayed in ApplicationsScreen.kt.
             delay(30_000)
         }
     }
@@ -224,7 +266,7 @@ fun App() {
         try {
             persistence.run()
         } finally {
-            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { remote?.close() }
+            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { remote.close() }
         }
     }
     var selectedTab by remember { mutableStateOf(0) }
@@ -252,6 +294,7 @@ fun App() {
         page = Screen.Organization
     }
 
+    // A notification can open an organization or an application. Keep the original route so Back can reopen it.
     fun goBack() {
         if (page == Screen.Notifications) {
             organizationId = notificationOrigin.organizationId
@@ -336,21 +379,22 @@ fun App() {
                 ) { padding ->
                     Box(Modifier.padding(padding)) {
                         if (!persistence.hasData) {
-                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                if (persistence.loading) {
-                                    StatusPanel("Loading campus data…", loading = true)
-                                } else {
+                            if (persistence.loading) {
+                                StageCallLoadingScreen("Loading campus data…")
+                            } else {
+                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                     StatusPanel(persistence.status, isError = true, actionLabel = "Retry connection", onAction = persistence::retry)
                                 }
                             }
                         } else when (page) {
+                            // NotificationsScreen.kt reports the selected notification here. Its IDs lead to OrganizationScreen.kt or ApplicationStatusScreen.kt.
                             Screen.Notifications -> NotificationsPage(
                                 repository = repository,
                                 store = notificationStore,
                                 onOpenNotification = { notification ->
                                     notificationDetailOpen = true
-                                    if (notification.applicationId != null) {
-                                        applicationId = notification.applicationId
+                                    if (notification.applicationId != null) { // Choose the application details route when the notification has an application ID.
+                                        applicationId = notification.applicationId // Keep the ID for ApplicationStatusScreen.kt.
                                         page = Screen.Status
                                     } else {
                                         scope.launch {
@@ -359,8 +403,8 @@ fun App() {
                                                 catch (e: kotlinx.coroutines.CancellationException) { throw e }
                                                 catch (_: Exception) { persistence.retry() }
                                             }
-                                            organizationId = notification.organizationId
-                                            organizationPostId = notification.postId
+                                            organizationId = notification.organizationId // Keep the ID for OrganizationScreen.kt.
+                                            organizationPostId = notification.postId // Tell OrganizationScreen.kt which post to focus on.
                                             page = Screen.Organization
                                         }
                                     }
@@ -468,6 +512,7 @@ fun App() {
                                 },
                                 onOpenOrganization = { id -> openOrganization(id) },
                             )
+                            // Send the selected application ID to ApplicationStatusScreen.kt so it can read the current record.
                             Screen.Status -> ApplicationPage(repository = repository, id = applicationId)
                             Screen.Main ->
                                 when (selectedTab) {
@@ -488,10 +533,13 @@ fun App() {
                                         )
                                     2 ->
                                         if (!applicationStore.loaded) {
-                                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                                val error = applicationStore.error
-                                                if (error == null) StatusPanel("Loading applications…", loading = true)
-                                                else StatusPanel(error, isError = true, actionLabel = "Retry", onAction = { scope.launch { applicationStore.refresh() } })
+                                            val error = applicationStore.error
+                                            if (error == null) {
+                                                StageCallLoadingScreen("Loading applications…")
+                                            } else {
+                                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                                    StatusPanel(error, isError = true, actionLabel = "Retry", onAction = { scope.launch { applicationStore.refresh() } })
+                                                }
                                             }
                                         } else ApplicationsPage(
                                             repository = repository,
@@ -516,10 +564,8 @@ fun App() {
                                             onSignOut = { scope.launch { try { AuthSession.signOut() } catch (e: Exception) { dialog = e.message ?: "Could not sign out." } } },
                                             darkTheme = darkTheme,
                                             onDarkThemeChange = { requested ->
-                                                darkTheme = requested
                                                 scope.launch {
                                                     if (!profileStore.saveTheme(requested)) {
-                                                        if (darkTheme == requested) darkTheme = profileStore.darkTheme
                                                         preferenceError = "Could not save your theme. Check your connection and try again."
                                                     }
                                                 }
@@ -541,49 +587,6 @@ fun App() {
                 text = { Text(dialog.orEmpty()) },
                 confirmButton = { TextButton(onClick = { dialog = null }) { Text("Close") } },
             )
-        }
-    }
-}
-
-
-@Composable
-private fun LoginScreen(error: String?, enabled: Boolean, signingIn: Boolean = false, onSignIn: () -> Unit) {
-    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Box(Modifier.fillMaxSize()) {
-        Canvas(Modifier.fillMaxSize()) {
-            drawRect(brush = Brush.verticalGradient(listOf(Color(0xFFE7F3FF), Color(0xFFF8FBFF), Color.White)))
-            val unit = minOf(size.width, size.height)
-            drawCircle(Color(0xFF8DC8F4).copy(alpha = 0.22f), radius = unit * 0.44f, center = Offset(size.width * 0.94f, size.height * 0.05f))
-            drawCircle(Color(0xFF6CAEE5).copy(alpha = 0.18f), radius = unit * 0.28f, center = Offset(size.width * 0.04f, size.height * 0.78f))
-            drawCircle(Color(0xFF70B5ED).copy(alpha = 0.24f), radius = unit * 0.16f, center = Offset(size.width * 0.10f, size.height * 0.16f), style = Stroke(width = unit * 0.008f))
-            drawCircle(Color(0xFF72B5E9).copy(alpha = 0.22f), radius = unit * 0.09f, center = Offset(size.width * 0.88f, size.height * 0.81f), style = Stroke(width = unit * 0.006f))
-        }
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(32.dp), verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(Icons.Filled.TheaterComedy, contentDescription = null, modifier = Modifier.padding(bottom = 16.dp).size(96.dp), tint = MaterialTheme.colorScheme.primary)
-            Text("StageCall", style = MaterialTheme.typography.headlineLarge)
-            Text("Discover your campus community", modifier = Modifier.padding(top = 8.dp, bottom = 24.dp), style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
-            Text("Use your University of Baguio Google account (for example, name@s.ubaguio.edu).", modifier = Modifier.padding(bottom = 16.dp), textAlign = TextAlign.Center)
-            OutlinedButton(onClick = onSignIn, enabled = enabled,
-                colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White, contentColor = Color(0xFF1F1F1F))) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    val googlePaths = remember {
-                        listOf(
-                            Color(0xFF4285F4) to "M21.35,12.25c0,-0.68 -0.06,-1.18 -0.19,-1.7H12v3.09h5.38c-0.11,0.77 -0.69,1.93 -1.98,2.71l-0.02,0.1 2.9,2.25 0.2,0.02c1.83,-1.69 2.87,-4.17 2.87,-6.47z",
-                            Color(0xFF34A853) to "M12,21.75c2.62,0 4.83,-0.86 6.44,-2.35l-3.08,-2.37c-0.83,0.57 -1.94,0.97 -3.36,0.97 -2.57,0 -4.75,-1.69 -5.53,-4.02l-0.1,0.01 -3.02,2.34 -0.04,0.1A9.73,9.73 0,0 0,12 21.75z",
-                            Color(0xFFFBBC05) to "M6.47,13.98a5.99,5.99 0,0 1,0 -3.96l-0.01,-0.11 -3.06,-2.38 -0.1,0.05a9.75,9.75 0,0 0,0 8.85z",
-                            Color(0xFFEA4335) to "M12,6c1.82,0 3.05,0.79 3.75,1.45l2.74,-2.67A9.35,9.35 0,0 0,12 2.25a9.73,9.73 0,0 0,-8.7 5.33l3.17,2.44C7.25,7.69 9.43,6 12,6z",
-                        ).map { (color, path) -> color to PathParser().parsePathString(path).toPath() }
-                    }
-                    Canvas(Modifier.size(20.dp)) {
-                        scale(size.width / 24f, size.height / 24f, pivot = Offset.Zero) {
-                            googlePaths.forEach { (color, path) -> drawPath(path, color) }
-                        }
-                    }
-                    Text(if (signingIn) "Opening Google…" else "Continue with Google")
-                }
-            }
-            if (error != null) Text(error, modifier = Modifier.padding(top = 16.dp), color = MaterialTheme.colorScheme.error)
-        }
         }
     }
 }

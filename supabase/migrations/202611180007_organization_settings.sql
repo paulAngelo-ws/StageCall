@@ -5,6 +5,7 @@ alter table public.organizations drop constraint if exists organizations_banner_
 alter table public.organizations add constraint organizations_banner_color_check
     check (banner_color in ('blue', 'green', 'purple', 'orange', 'indigo', 'gold'));
 
+-- OrganizationRoleStore.kt sends edited settings here. The update trigger in 202611180014_organization_notifications.sql can announce the change.
 create or replace function public.update_organization_settings(
     p_organization_id text, p_about_headline text, p_full_description text,
     p_is_recruiting boolean, p_banner_color text

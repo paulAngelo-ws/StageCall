@@ -1,5 +1,6 @@
 # Copy these two entries into local.properties in the project root.
 # Keep any existing sdk.dir entry there.
+# shared/build.gradle.kts reads the copied values to generate SupabaseConfig.kt for AuthSession.kt.
 SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 SUPABASE_PUBLISHABLE_KEY=YOUR_PUBLISHABLE_OR_ANON_KEY
 # Never use a service_role or sb_secret_ key in this client application.

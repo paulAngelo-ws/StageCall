@@ -1,5 +1,6 @@
--- Run after supabase/setup.sql. Applicants can only submit and read their own rows.
+-- Run after 202611180003_public_catalog.sql. Applicants can only submit and read their own rows.
 begin;
+-- ApplicationStore.kt inserts the student’s form and reads back its ID. The review functions in 202611180005_organization_roles.sql read these same rows.
 create table if not exists public.membership_applications (
     id integer generated always as identity primary key,
     user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,

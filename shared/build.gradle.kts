@@ -50,6 +50,7 @@ tasks.register<CheckSupabaseConfig>("checkSupabaseConfig") {
     projectUrl.set(supabaseUrl)
     publishableKey.set(supabaseKey)
 }
+// Turn the public client settings into SupabaseConfig.kt at build time. AuthSession.kt reads that generated file.
 abstract class GenerateSupabaseConfig : DefaultTask() {
     @get:Input abstract val projectUrl: Property<String>
     @get:Input abstract val publishableKey: Property<String>
@@ -60,10 +61,10 @@ abstract class GenerateSupabaseConfig : DefaultTask() {
         fun literal(value: String) = "\"" + value.replace("\\", "\\\\")
             .replace("\"", "\\\"").replace("$", "\${'$'}{'$'}")
             .replace("\r", "\\r").replace("\n", "\\n") + "\""
-        val target = outputDirectory.get().file("com/weissev/stagecall/data/SupabaseConfig.kt").asFile
+        val target = outputDirectory.get().file("com/weissev/stagecall/data/remote/SupabaseConfig.kt").asFile
         target.parentFile.mkdirs()
         target.writeText("""
-            package com.weissev.stagecall.data
+            package com.weissev.stagecall.data.remote
             internal object SupabaseConfig {
                 const val url = ${literal(projectUrl.get())}
                 const val publishableKey = ${literal(publishableKey.get())}
@@ -75,9 +76,10 @@ abstract class GenerateSupabaseConfig : DefaultTask() {
 val generateSupabaseConfig by tasks.registering(GenerateSupabaseConfig::class) {
     projectUrl.set(supabaseUrl)
     publishableKey.set(supabaseKey)
-    outputDirectory.set(layout.buildDirectory.dir("generated/supabase/commonMain"))
+    outputDirectory.set(layout.buildDirectory.dir("generated/supabaseConfig/commonMain"))
 }
 
+// Build the common UI for each platform. Each target adds its own HTTP engine and includes its platform implementation of RepositoryCache.kt.
 kotlin {
     listOf(iosArm64(), iosSimulatorArm64()).forEach { iosTarget ->
         iosTarget.binaries.framework {
@@ -138,7 +140,6 @@ kotlin {
         iosMain.dependencies { implementation(libs.ktor.client.darwin) }
         jsMain.dependencies { implementation(libs.ktor.client.js) }
         wasmJsMain.dependencies { implementation(libs.ktor.client.js) }
-        jsMain.dependencies { implementation(libs.wrappers.browser) }
         getByName("androidDeviceTest").dependencies { implementation(libs.androidx.testRunner) }
     }
 }

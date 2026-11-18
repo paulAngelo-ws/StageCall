@@ -33,6 +33,7 @@ create policy "Create own visible notification receipts" on public.organization_
     user_id = (select auth.uid()) and exists (select 1 from public.organization_notifications n where n.id = notification_id)
 );
 
+-- A new campus post inserts a notification here. NotificationStore.kt later reads it for NotificationsScreen.kt.
 create or replace function public.stagecall_notify_post() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
@@ -73,6 +74,7 @@ drop trigger if exists stagecall_organization_notification on public.organizatio
 create trigger stagecall_organization_notification after update on public.organizations for each row execute function public.stagecall_notify_organization_update();
 
 -- Runs with the caller's privileges and RLS, including for bulk marking.
+-- NotificationStore.kt sends a notification ID or a bulk request. The read receipt is included in the next sync from 202611180017_incremental_sync.sql.
 create or replace function public.mark_organization_notifications_read(p_notification_id integer default null)
 returns void language sql security invoker set search_path = '' as $$
     insert into public.organization_notification_reads (user_id, notification_id)

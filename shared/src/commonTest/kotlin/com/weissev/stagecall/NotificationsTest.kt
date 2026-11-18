@@ -7,6 +7,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
+// Exercise the local notification model in StageCallRepository.kt using the organizations from DemoFixtures.kt.
 class NotificationsTest {
     @Test
     fun onlyJoinedOrganizationsSendPostAndActivityNotifications() {

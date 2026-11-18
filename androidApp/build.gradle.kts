@@ -1,5 +1,6 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
+// Package MainActivity.kt and AndroidManifest.xml as the Android app. The shared module supplies App.kt.
 plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.composeCompiler)

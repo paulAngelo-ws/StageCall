@@ -1,5 +1,6 @@
 -- Enable both functions in Authentication > Hooks after applying this migration.
 -- Match the whole domain, allowing ubaguio.edu and its subdomains only.
+-- Supabase Auth calls this hook before creating a Google account. App.kt receives the resulting session or sign-in error through AuthSession.kt.
 create or replace function public.stagecall_before_user_created(event jsonb)
 returns jsonb language plpgsql stable set search_path = '' as $$
 begin

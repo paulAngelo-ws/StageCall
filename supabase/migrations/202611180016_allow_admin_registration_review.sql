@@ -1,5 +1,6 @@
 begin;
 
+-- OrganizationRegistrationStore.kt calls this version when an admin submits a decision. Approval creates a row for SupabaseStateStore.kt to read.
 create or replace function public.decide_organization_registration(p_id integer, p_approve boolean, p_decision text)
 returns void language plpgsql security definer set search_path = '' as $$
 declare

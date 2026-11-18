@@ -15,25 +15,16 @@ internal data class RepositorySnapshot(
     val version: Int = 1,
 )
 
-@Serializable
-internal data class CachedRepository(
-    val state: RepositorySnapshot,
-    val databaseVerified: Boolean = false,
-    val source: String = "",
-    val localBookmarks: List<String> = emptyList(),
-)
-
-internal const val PUBLIC_CATALOG_SOURCE = "public_catalog_v1"
-
+// RepositoryPersistence.kt uses this when reading or writing catalog data. Keep private account fields out of that cache.
 internal fun publicCatalogSnapshot(organizations: List<Organization>, posts: List<CampusPost>): RepositorySnapshot {
-    val organizationIds = organizations.map { it.id }.toSet()
+    val organizationIds = organizations.map { it.id }.toSet() // Collect the valid organization IDs before filtering the public feed.
     return RepositorySnapshot(
         organizations = organizations,
         profile = Student("", "", ""),
         bookmarks = emptyList(),
         applications = emptyList(),
         members = emptyList(),
-        posts = posts.filter { !it.membersOnly && it.organizationId in organizationIds },
+        posts = posts.filter { !it.membersOnly && it.organizationId in organizationIds }, // Only save public posts that reference an organization in this snapshot.
         notifications = emptyList(),
     )
 }

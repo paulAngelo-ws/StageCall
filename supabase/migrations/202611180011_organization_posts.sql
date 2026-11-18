@@ -1,5 +1,6 @@
 -- Presidents may publish public posts only for their own organizations.
 begin;
+-- This first post function is replaced by 202611180012_post_audiences.sql, which adds a members-only option.
 create or replace function public.create_organization_post(
     p_organization_id text, p_title text, p_message text, p_category text, p_schedule text
 ) returns setof public.campus_posts

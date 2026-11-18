@@ -1,9 +1,10 @@
--- Legacy private-snapshot seed. The current guest app uses supabase/setup.sql instead.
+-- Legacy private-snapshot seed. The current guest app uses 202611180003_public_catalog.sql instead.
 -- Safe to rerun: existing user snapshots are preserved, including edits.
 -- Source of sample data for the app, using version-1 RepositorySnapshot JSON keys.
 -- Sample students/memberships are demo fixtures, not Supabase accounts or roles.
 begin;
 
+-- Build the JSON shape described by RepositorySnapshot.kt for the legacy snapshots in stagecall_state.
 create or replace function public.stagecall_demo_state() returns jsonb
 language sql stable set search_path = '' as $function$
     with seed(payload) as (

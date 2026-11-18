@@ -8,7 +8,14 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
+
+internal interface RemoteStateStore {
+    suspend fun load(): RepositorySnapshot
+    suspend fun close()
+}
 
 /** Loads the shared catalog and caches successful reads. Guest clients never upload data. */
 internal class RepositoryPersistence(
@@ -17,6 +24,9 @@ internal class RepositoryPersistence(
     private val remote: RemoteStateStore?,
 ) {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+    private var savedCatalog: RepositorySnapshot? = null
+    // A notification can request a refresh while the timer is running. Finish one catalog refresh before starting the next.
+    private val syncLock = Mutex()
     private val requests = Channel<Unit>(Channel.CONFLATED)
     var loading by mutableStateOf(remote != null)
         private set
@@ -31,14 +41,15 @@ internal class RepositoryPersistence(
 
     init {
         try {
+            // Only restore a verified public snapshot from RepositoryCache.kt before contacting SupabaseStateStore.kt.
             val cached = cache.read()?.let { json.decodeFromString<CachedRepository>(it) }
                 ?.takeIf { it.databaseVerified && it.source == PUBLIC_CATALOG_SOURCE }
             cached?.let {
                 require(it.state.version == 1) { "Unsupported cache version" }
-                repository.restore(publicCatalogSnapshot(it.state.organizations, it.state.posts))
-                if (it.localBookmarks.isNotEmpty()) {
-                    saveCache(publicCatalogSnapshot(it.state.organizations, it.state.posts))
-                }
+                val catalog = publicCatalogSnapshot(it.state.organizations, it.state.posts)
+                repository.restore(catalog)
+                savedCatalog = catalog
+                if (it.localBookmarks.isNotEmpty()) saveCache(catalog)
                 hasData = true
                 status = "Showing cached database data"
             }
@@ -51,21 +62,29 @@ internal class RepositoryPersistence(
         cache.write(json.encodeToString(CachedRepository(
             state, databaseVerified = true, source = PUBLIC_CATALOG_SOURCE,
         )))
+        savedCatalog = state
     }.isSuccess
 
-    internal suspend fun synchronize() {
-        val store = remote ?: return
-        val fetched = store.load()
+    internal suspend fun synchronize() = syncLock.withLock {
+        val store = remote ?: return@withLock
+        // SupabaseStateStore.kt returns the catalog snapshot. The merged data goes to StageCallRepository.kt for the screens.
+        val fetched = store.load() // SupabaseStateStore.kt supplies organizations and public posts.
         require(fetched.version == 1) { "Unsupported remote state version" }
-        val state = publicCatalogSnapshot(fetched.organizations, fetched.posts)
+        val state = publicCatalogSnapshot(fetched.organizations, fetched.posts) // Build a snapshot that can be stored without personal records.
         val bookmarks = repository.bookmarks.toList()
         // A storage failure must not hide a successful database response.
-        val cacheSaved = saveCache(state)
+        val cacheSaved = state == savedCatalog || saveCache(state)
         // Catalog refresh must not erase the authenticated user's application state.
-        val personal = repository.snapshot()
-        repository.restore(state.copy(posts = state.posts + personal.posts.filter { it.membersOnly }, profile = personal.profile, applications = personal.applications,
-            members = personal.members, notifications = personal.notifications))
-        repository.bookmarks.addAll(bookmarks)
+        val personal = repository.snapshot() // Take the current application, membership, and profile data from StageCallRepository.kt.
+        val merged = state.copy(
+            posts = state.posts + personal.posts.filter { it.membersOnly }, // Keep the members-only posts that OrganizationRoleStore.kt already loaded.
+            profile = personal.profile,
+            bookmarks = bookmarks,
+            applications = personal.applications,
+            members = personal.members,
+            notifications = personal.notifications,
+        )
+        if (merged != personal) repository.restore(merged) // Update StageCallRepository.kt only when the result differs.
         hasData = true
         refreshFailed = false
         status = if (cacheSaved) "Loaded from Supabase" else "Loaded from Supabase - cache unavailable"
@@ -78,9 +97,10 @@ internal class RepositoryPersistence(
         launch {
             while (true) {
                 retry()
-                delay(30_000)
+                delay(30_000) // Wait 30 seconds before asking for another refresh.
             }
         }
+        // A manual retry and the timer share this loop. The conflated channel keeps only one waiting request.
         for (request in requests) {
             loading = true
             status = if (hasData) "Refreshing from Supabase..." else "Connecting to Supabase..."
@@ -89,7 +109,7 @@ internal class RepositoryPersistence(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
-                refreshFailed = true
+                refreshFailed = true // App.kt can show the saved feed with a retry message.
                 status = if (hasData) "Refresh failed - showing cached data" else "Connection failed - tap to retry"
             } finally {
                 loading = false

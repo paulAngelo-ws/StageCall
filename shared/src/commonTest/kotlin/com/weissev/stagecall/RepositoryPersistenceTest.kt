@@ -5,6 +5,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlin.test.*
 
+// Give RepositoryPersistence.kt fake storage and database reads so offline and retry behavior can be checked without Supabase.
 class RepositoryPersistenceTest {
     private class Cache : RepositoryCache {
         var value: String? = null

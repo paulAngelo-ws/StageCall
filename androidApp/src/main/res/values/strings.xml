@@ -1,3 +1,4 @@
 <resources>
+    <!-- AndroidManifest.xml uses this name for the launcher label. -->
     <string name="app_name">StageCall</string>
 </resources>

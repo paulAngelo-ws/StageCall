@@ -2,6 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Android reads the launcher icons and app name from the mipmap resources and strings.xml. -->
     <application
             android:allowBackup="true"
             android:icon="@mipmap/ic_launcher"
@@ -19,6 +20,7 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
             <intent-filter>
+                <!-- Android delivers the stagecall callback to MainActivity.kt, which forwards it to AuthSession.kt. -->
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />

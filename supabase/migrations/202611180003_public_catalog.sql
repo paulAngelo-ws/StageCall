@@ -3,6 +3,7 @@
 -- Safe to rerun: existing rows and old private snapshots are preserved.
 begin;
 
+-- SupabaseStateStore.kt reads this catalog and passes the organizations and posts to RepositoryPersistence.kt.
 create table if not exists public.organizations (
     id text primary key,
     name text not null,

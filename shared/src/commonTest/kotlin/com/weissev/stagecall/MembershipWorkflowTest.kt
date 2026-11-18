@@ -3,6 +3,7 @@ package com.weissev.stagecall
 import com.weissev.stagecall.data.*
 import kotlin.test.*
 
+// Use DemoFixtures.kt to check the application and membership rules in StageCallRepository.kt.
 class MembershipWorkflowTest {
     @Test
     fun submissionValidatesAndPreventsDuplicates() {

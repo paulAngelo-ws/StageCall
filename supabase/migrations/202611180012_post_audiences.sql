@@ -11,6 +11,7 @@ create policy "Members read organization posts" on public.campus_posts
 
 -- Remove the old public-only signature so there is only one callable variant.
 drop function if exists public.create_organization_post(text, text, text, text, text);
+-- The audience controls which rows the post policies expose. Migration 202611180013_post_images.sql adds the optional image path.
 create or replace function public.create_organization_post(
     p_organization_id text, p_title text, p_message text, p_category text, p_schedule text, p_members_only boolean
 ) returns setof public.campus_posts

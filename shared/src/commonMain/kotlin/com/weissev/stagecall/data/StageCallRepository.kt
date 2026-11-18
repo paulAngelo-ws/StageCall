@@ -4,17 +4,19 @@ import androidx.compose.runtime.*
 import kotlin.time.Clock
 
 class StageCallRepository {
+    // RepositoryPersistence.kt takes this snapshot to preserve personal data while refreshing the catalog.
     internal fun snapshot() = RepositorySnapshot(
         organizations.toList(), profile, bookmarks.toList(), applications.toList(),
         members.toList(), posts.toList(), notificationHistory.toList(),
     )
 
+    // Replacing values in these Compose state lists updates the screens that read the repository.
     internal fun restore(snapshot: RepositorySnapshot) {
         organizations.clear()
         organizations.addAll(snapshot.organizations)
         profile = snapshot.profile
         bookmarks.clear()
-        bookmarks.addAll(snapshot.bookmarks)
+        bookmarks.addAll(snapshot.bookmarks) // Restore bookmark IDs from the supplied snapshot.
         applications.clear()
         applications.addAll(snapshot.applications)
         members.clear()
@@ -30,17 +32,19 @@ class StageCallRepository {
     var profile by mutableStateOf(Student("", "", ""))
         private set
     internal fun setAccount(student: Student) { profile = student }
+    // ApplicationStore.kt sends the signed-in student’s saved and refreshed applications here.
     internal fun setApplications(value: List<MembershipApplication>) {
         applications.clear()
-        applications.addAll(value)
+        applications.addAll(value) // Replace the old applications with the list from ApplicationStore.kt.
     }
+    // OrganizationRoleStore.kt sends confirmed memberships here. ProfileScreen.kt uses them to show joined organizations.
     internal fun setMemberships(value: List<Member>) {
         members.clear()
-        members.addAll(value)
+        members.addAll(value) // Replace the old memberships with the confirmed list from OrganizationRoleStore.kt.
     }
     val bookmarks = mutableStateListOf<String>()
     internal var onBookmarksChanged: () -> Unit = {}
-    val applications = mutableStateListOf<MembershipApplication>()
+    val applications = mutableStateListOf<MembershipApplication>() // Compose screens update when ApplicationStore.kt changes this list.
     val members = mutableStateListOf<Member>()
     val posts = mutableStateListOf<CampusPost>()
     private val notificationHistory = mutableStateListOf<StageCallNotification>()
@@ -95,11 +99,11 @@ class StageCallRepository {
         val index = organizations.indexOfFirst { it.id == updated.id }
         if (index < 0 || updated.name.isBlank() || updated.description.isBlank()) return false
         val previous = organizations[index]
-        if (previous == updated) return true
+        if (previous == updated) return true // Treat a save with no edits as successful without creating an update.
         organizations[index] = updated
         val activityChanged = previous.nextActivityTitle != updated.nextActivityTitle ||
             previous.nextActivitySchedule != updated.nextActivitySchedule
-        val changes = buildList {
+        val changes = buildList { // Collect the specific changes that should appear in notifications.
             if (previous.name != updated.name) add("Organization name updated to ${updated.name}.")
             if (previous.isRecruiting != updated.isRecruiting)
                 add(if (updated.isRecruiting) "Recruitment is now open." else "Recruitment is now closed.")
