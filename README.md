@@ -2,7 +2,7 @@
 
 StageCall helps university students discover campus organizations and updates, apply for membership, and follow their applications. Organization presidents can review applications. The app uses Kotlin and Compose Multiplatform for Android, desktop, web, and iOS, with Supabase for authentication and data.
 
-[Download the Android APK](https://github.com/paulAngelo-ws/StageCall/releases/latest)
+[![Download Android APK](docs/assets/download-android.svg)](https://github.com/paulAngelo-ws/StageCall/releases/latest)
 
 ## Features
 
