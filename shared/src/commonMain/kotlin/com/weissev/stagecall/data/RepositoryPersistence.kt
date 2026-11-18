@@ -18,6 +18,10 @@ internal class RepositoryPersistence(
 ) {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val requests = Channel<Unit>(Channel.CONFLATED)
+    var loading by mutableStateOf(remote != null)
+        private set
+    var refreshFailed by mutableStateOf(false)
+        private set
     var hasData by mutableStateOf(false)
         private set
     var status by mutableStateOf(
@@ -32,28 +36,20 @@ internal class RepositoryPersistence(
             cached?.let {
                 require(it.state.version == 1) { "Unsupported cache version" }
                 repository.restore(publicCatalogSnapshot(it.state.organizations, it.state.posts))
-                repository.bookmarks.addAll(it.localBookmarks.distinct().filter { id ->
-                    repository.organizations.any { organization -> organization.id == id }
-                })
+                if (it.localBookmarks.isNotEmpty()) {
+                    saveCache(publicCatalogSnapshot(it.state.organizations, it.state.posts))
+                }
                 hasData = true
                 status = "Showing cached database data"
             }
         } catch (_: Exception) {
             status = "Cache unavailable - connect to Supabase"
         }
-        repository.onBookmarksChanged = {
-            if (hasData) {
-                val state = publicCatalogSnapshot(repository.organizations.toList(), repository.posts.toList())
-                if (!saveCache(state, repository.bookmarks.toList())) {
-                    status = "Bookmarks updated - local storage unavailable"
-                }
-            }
-        }
     }
 
-    private fun saveCache(state: RepositorySnapshot, bookmarks: List<String>): Boolean = runCatching {
+    private fun saveCache(state: RepositorySnapshot): Boolean = runCatching {
         cache.write(json.encodeToString(CachedRepository(
-            state, databaseVerified = true, source = PUBLIC_CATALOG_SOURCE, localBookmarks = bookmarks,
+            state, databaseVerified = true, source = PUBLIC_CATALOG_SOURCE,
         )))
     }.isSuccess
 
@@ -62,15 +58,16 @@ internal class RepositoryPersistence(
         val fetched = store.load()
         require(fetched.version == 1) { "Unsupported remote state version" }
         val state = publicCatalogSnapshot(fetched.organizations, fetched.posts)
-        val bookmarks = repository.bookmarks.filter { id -> state.organizations.any { it.id == id } }
+        val bookmarks = repository.bookmarks.toList()
         // A storage failure must not hide a successful database response.
-        val cacheSaved = saveCache(state, bookmarks)
+        val cacheSaved = saveCache(state)
         // Catalog refresh must not erase the authenticated user's application state.
         val personal = repository.snapshot()
         repository.restore(state.copy(profile = personal.profile, applications = personal.applications,
             members = personal.members, notifications = personal.notifications))
         repository.bookmarks.addAll(bookmarks)
         hasData = true
+        refreshFailed = false
         status = if (cacheSaved) "Loaded from Supabase" else "Loaded from Supabase - cache unavailable"
     }
 
@@ -85,13 +82,17 @@ internal class RepositoryPersistence(
             }
         }
         for (request in requests) {
+            loading = true
             status = if (hasData) "Refreshing from Supabase..." else "Connecting to Supabase..."
             try {
                 synchronize()
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
+                refreshFailed = true
                 status = if (hasData) "Refresh failed - showing cached data" else "Connection failed - tap to retry"
+            } finally {
+                loading = false
             }
         }
     }

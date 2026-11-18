@@ -50,10 +50,11 @@ internal data class OrganizationRow(
     val deadline: String,
     @SerialName("next_activity_title") val nextActivityTitle: String,
     @SerialName("next_activity_schedule") val nextActivitySchedule: String,
+    @SerialName("banner_color") val bannerColor: String = "blue",
 ) {
     fun toOrganization() = Organization(
         id, name, category, description, shortTagline, aboutHeadline, fullDescription,
-        memberCount, isRecruiting, requirements, deadline, nextActivityTitle, nextActivitySchedule,
+        memberCount, isRecruiting, requirements, deadline, nextActivityTitle, nextActivitySchedule, bannerColor,
     )
 }
 

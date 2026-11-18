@@ -17,4 +17,5 @@ data class Organization(
     val deadline: String,
     val nextActivityTitle: String,
     val nextActivitySchedule: String,
+    val bannerColor: String = "blue",
 )

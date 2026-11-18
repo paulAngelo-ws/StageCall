@@ -181,7 +181,7 @@ class RepositoryPersistenceTest {
     }
 
     @Test
-    fun localBookmarksSurviveRefreshAndRestartAndPersistRemoval() = runTest {
+    fun bookmarksSurviveCatalogRefreshButNotSharedCache() = runTest {
         val cache = Cache()
         val repository = StageCallRepository()
         val persistence = RepositoryPersistence(repository, cache, Remote())
@@ -192,7 +192,7 @@ class RepositoryPersistenceTest {
 
         val reopened = StageCallRepository()
         RepositoryPersistence(reopened, cache, null)
-        assertEquals(listOf("2"), reopened.bookmarks.toList())
+        assertTrue(reopened.bookmarks.isEmpty())
         assertTrue(reopened.profile.studentId.isEmpty())
         reopened.toggleBookmark("2")
 
@@ -202,7 +202,19 @@ class RepositoryPersistenceTest {
     }
 
     @Test
-    fun refreshDropsBookmarksForDeletedOrganizations() = runTest {
+    fun legacyCachedBookmarksAreNotRestoredAndAreRemoved() {
+        val catalog = publicCatalogSnapshot(populatedRepository().organizations.toList(), emptyList())
+        val cache = Cache().apply {
+            value = Json.encodeToString(CachedRepository(catalog, true, PUBLIC_CATALOG_SOURCE, listOf("1")))
+        }
+        val repository = StageCallRepository()
+        RepositoryPersistence(repository, cache, null)
+        assertTrue(repository.bookmarks.isEmpty())
+        assertTrue(Json.decodeFromString<CachedRepository>(cache.value!!).localBookmarks.isEmpty())
+    }
+
+    @Test
+    fun refreshPreservesAccountBookmarksEvenWhenOrganizationIsAbsent() = runTest {
         val repository = StageCallRepository()
         val remote = Remote()
         val persistence = RepositoryPersistence(repository, Cache(), remote)
@@ -210,7 +222,7 @@ class RepositoryPersistenceTest {
         repository.toggleBookmark("1")
         remote.state = remote.state.copy(organizations = remote.state.organizations.filter { it.id != "1" })
         persistence.synchronize()
-        assertTrue(repository.bookmarks.isEmpty())
+        assertEquals(listOf("1"), repository.bookmarks.toList())
     }
 
     @Test

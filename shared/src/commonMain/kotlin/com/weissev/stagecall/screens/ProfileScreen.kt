@@ -47,6 +47,7 @@ internal fun ProfilePage(
     accountName: String,
     accountPicture: String,
     profileStore: ProfileStore,
+    onSaved: () -> Unit,
     onSignOut: () -> Unit,
     darkTheme: Boolean,
     onDarkThemeChange: (Boolean) -> Unit,
@@ -214,7 +215,7 @@ internal fun ProfilePage(
     }
     if (editing) {
         AlertDialog(
-            onDismissRequest = { editing = false },
+            onDismissRequest = { if (!profileStore.saving) editing = false },
             title = { Text("Edit profile") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -225,10 +226,10 @@ internal fun ProfilePage(
             },
             confirmButton = {
                 TextButton(enabled = !profileStore.saving, onClick = {
-                    scope.launch { if (profileStore.save(bio)) editing = false }
+                    scope.launch { if (profileStore.save(bio)) { editing = false; onSaved() } }
                 }) { Text(if (profileStore.saving) "Saving..." else "Save") }
             },
-            dismissButton = { TextButton(onClick = { editing = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(enabled = !profileStore.saving, onClick = { editing = false }) { Text("Cancel") } },
         )
     }
 }

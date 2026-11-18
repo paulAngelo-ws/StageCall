@@ -12,6 +12,9 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlin.time.Instant
 
+internal const val STUDENT_ID_LIMIT = 50
+internal const val APPLICATION_REASON_LIMIT = 1000
+
 @Serializable
 internal data class ApplicationRow(
     val id: Int,
@@ -62,6 +65,11 @@ internal class ApplicationStore(private val client: SupabaseClient, private val 
     }
 
     suspend fun submit(organizationId: String, studentNumber: String, year: String, reason: String): Int? = lock.withLock {
+        if (studentNumber.isBlank() || studentNumber.length > STUDENT_ID_LIMIT ||
+            reason.isBlank() || reason.length > APPLICATION_REASON_LIMIT) {
+            error = "Enter a student ID (up to $STUDENT_ID_LIMIT characters) and a reason (up to $APPLICATION_REASON_LIMIT characters)."
+            return@withLock null
+        }
         submitting = true
         try {
             val profile = repository.profile

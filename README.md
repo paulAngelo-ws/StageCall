@@ -1,193 +1,62 @@
 # StageCall
 
-StageCall helps university students discover organizations, apply for membership,
-read campus updates, and manage their communities. It uses Kotlin and Compose
-Multiplatform to share one interface across Android, desktop, web, and iOS.
+StageCall helps university students discover campus organizations and updates, apply for membership, and follow their applications. Organization presidents can review applications. The app uses Kotlin and Compose Multiplatform for Android, desktop, web, and iOS, with Supabase for authentication and data.
 
 [Download the Android APK](https://github.com/paulAngelo-ws/StageCall/releases/latest)
 
-## Start reading here
+## Features
 
-Most app code is in `shared/src/commonMain/kotlin/com/weissev/stagecall/`.
-Read these files in this order:
-
-1. `screens/PublicFeed.kt`: a complete screen with state, filter buttons, and post cards.
-2. `screens/ProfileScreen.kt`: text fields and buttons for editing a profile.
-3. `App.kt`: creates the shared data once and chooses which screen to display.
-4. `data/Models.kt`: the information the app stores, such as students and applications.
-5. `data/Organizations.kt`: the organization data model.
-6. `data/StageCallRepository.kt`: the shared data and functions that change it.
-7. `components/StageCallTheme.kt`: the app's colors and rounded shapes.
-
-Each screen has its own file. Its layout is written directly using standard Compose
-elements such as `Column`, `Card`, `Text`, `Button`, and `OutlinedTextField`.
-There is no separate `UiComponents.kt` to look up when reading a screen.
-
-- Discovery: `PublicFeed.kt`, `DirectoryScreen.kt`, and `OrgDetailScreen.kt`.
-- Applications: `ApplicationsScreen.kt`, `ApplyScreen.kt`, and `ApplicationStatusScreen.kt`.
-- Profile and appearance: `ProfileScreen.kt`, `ThemeSettings.kt`, and `components/StageCallTheme.kt`.
-
-Read a screen from top to bottom: the variables above the main `Column` hold its
-state, and the elements inside the `Column` appear in that order. A `for` loop draws
-one card or filter chip for each item. The same layout code appears in several files
-so you can edit a screen without following custom layout functions elsewhere.
-
-## Kotlin and Compose basics
-
-- `val` is a value you do not reassign. `var` is a value you can change.
-- A `data class` groups related information. `copy` creates an updated version.
-- An `enum class` lists a fixed set of choices, such as application statuses or pages.
-- A function marked `@Composable` draws part of the interface.
-- `Column` places items vertically. `Row` places them horizontally. `Box` stacks items.
-- `Modifier` controls an element's size, padding, and other layout properties.
-- `remember { mutableStateOf(...) }` keeps a screen value and redraws the UI when it changes.
-- `by` lets you read and write that state like a normal variable.
-- A `mutableStateListOf` is a list that also tells the UI when items change.
-- `{ ... }` can be a small function. Buttons call these functions when clicked.
-- Parameters starting with `on`, such as `onOpenOrganization`, are functions that
-  the screen calls after an action. `App.kt` supplies them to change the current page.
-- `it` refers to the one input of a short function. Longer conditions use named inputs.
-- `filter` keeps matching items, `map` transforms items, and `any` checks for a match.
-
-For example, clicking Apply calls `repository.submit(...)`. The repository checks
-whether the student can apply, adds the application, and returns `true` if it worked.
-The screen then opens the application's status page. All screens share the same
-repository, so the Applications and Profile pages see the new application too.
-
-## Change the design
-
-Edit `components/StageCallTheme.kt` to change colors across the whole app.
-In Profile → Account → Theme, switch between Light and Dark. The choice applies
-throughout the app and is saved on the device (or in browser local storage).
-To change a card, button, text field, or spacing, edit it directly in its screen file.
-The layout stays centered on desktop and fills the available width on small screens.
+- Browse the organization directory and public campus feed, view organization details, and bookmark organizations.
+- Sign in with Google, submit membership applications, and see their status. An accepted application creates a membership.
+- Review pending applications as an organization's president, with an optional decision note.
+- View memberships, edit a profile bio, choose a light or dark theme, and see in-app notifications.
 
 ## Run the app
 
-Run these commands from the project folder. On Windows use `gradlew.bat`;
-on macOS or Linux use `./gradlew`.
+The project uses the Gradle wrapper and a Java 21 Gradle toolchain. Android builds also require the Android SDK; iOS builds require Xcode on a Mac. Configure Supabase and Google sign-in as described below before using the app. On Windows, use `gradlew.bat` instead of `./gradlew`.
 
-```text
+```sh
 ./gradlew :androidApp:assembleDebug
 ./gradlew :desktopApp:run
 ./gradlew :webApp:wasmJsBrowserDevelopmentRun
 ```
 
-For iOS, open `iosApp` in Xcode on a Mac.
-The platform folders contain startup code; the shared folder contains the app itself.
-Gradle's `.kts` files configure the build and dependencies; beginners usually do not
-need to edit them to change a screen.
+For iOS, open `iosApp` in Xcode. Platform folders provide startup code; the shared UI and logic live in `shared`.
 
-## Try the membership workflow
+## Set up Supabase
 
-1. Open Directory and select Google Developer Groups.
-2. Apply with a reason, year level, and consent.
-3. Open Applications to see the Pending application.
-4. Open the application to see its status and details.
-5. Open Profile to see current memberships and switch between light and dark themes.
+1. Create a Supabase project. Run `supabase/setup.sql` in its SQL Editor to create and seed the public catalog.
+2. Run these files in order in the SQL Editor:
+   - `supabase/migrations/202611180004_membership_applications.sql`
+   - `supabase/migrations/202611180005_organization_roles.sql`
+   - `supabase/migrations/202611180006_user_profiles.sql`
+   - `supabase/migrations/202611180007_organization_settings.sql`
+   - `supabase/migrations/202611180008_profile_preferences.sql`
+   - `supabase/migrations/202611180009_application_length_limits.sql`
+3. Copy the entries from `local.properties.example` to the root `local.properties`, keeping any existing `sdk.dir` entry:
 
-Applications use Pending, Accepted, and Rejected statuses. Duplicate applications
-and reapplications after rejection are unavailable in this demo. Accepted applications create memberships. Members-only posts are not yet connected to membership.
-Events require a date, time, and location.
+   ```properties
+   SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+   SUPABASE_PUBLISHABLE_KEY=YOUR_PUBLISHABLE_OR_ANON_KEY
+   ```
 
-## Run the existing tests
+4. Run `./gradlew :shared:checkSupabaseConfig`, then rebuild and relaunch the app. Install the rebuilt APK for Android.
 
-```text
-./gradlew :shared:jvmTest :desktopApp:compileKotlin
-```
+Use a publishable key or legacy `anon` key, never a secret or `service_role` key. Client credentials are embedded in the app; database row level security (RLS) controls access. `local.properties` is ignored by Git, and nonblank environment variables with the same names take precedence.
 
-For a Windows network drive, invoke Java directly. Disabling incremental compilation
-avoids conflicts between mapped drive paths and their underlying network paths:
+`setup.sql` and migration `202611180003_public_catalog.sql` provide the same catalog setup; use either, not both as separate steps. The setup is safe to rerun and preserves existing catalog values. Migrations `001` and `002` belong to an earlier prototype and are not required for a new setup. The catalog seed provides five organizations and three campus posts.
 
-```text
-java -jar gradle/wrapper/gradle-wrapper.jar :shared:jvmTest :desktopApp:compileKotlin --no-configuration-cache --no-watch-fs "-Pkotlin.incremental=false"
-```
+### Google sign-in
 
-The tests cover application validation, duplicate submissions, closed recruitment,
-approval, rejection, duplicate decisions, and required event details.
+1. In Supabase, open **Authentication → Sign In / Providers → Google** and copy the callback URL shown there.
+2. In Google Cloud Console, configure the OAuth consent screen and add test users if the app is in testing. Create a **Web application** OAuth client and add the Supabase callback URL to its authorized redirect URIs.
+3. Enable Google in Supabase and enter the client ID and secret. Keep the secret in Supabase, not in the app or repository.
+4. In Supabase **Authentication → URL Configuration**, allow `stagecall://auth` for Android and iOS, the exact web origin including its port and your production URL, and `http://localhost:*` for desktop.
+5. Rebuild and sign in with Google. Check **Authentication → Users** in Supabase, restart to test session restoration, and use **Profile → Sign out** to test sign-out.
 
-## Supabase and local caching
+### Assign a president
 
-Put your project configuration in **`local.properties`** in the project root
-(next to `gradlew.bat`). Keep any existing `sdk.dir` entry.
-
-```properties
-SUPABASE_URL=https://YOUR_PROJECT.supabase.co
-SUPABASE_PUBLISHABLE_KEY=YOUR_PUBLISHABLE_OR_ANON_KEY
-```
-
-Use the publishable key (or legacy `anon` key), never a secret or `service_role` key.
-`local.properties` is ignored by Git. These are public client credentials embedded
-in the app; row level security controls database access. Nonblank environment
-variables with the same names take precedence. Rebuild after changing the values.
-
-1. Run the entire **`supabase/setup.sql`** file in your Supabase SQL Editor.
-2. Its result should show **5 rows in `public.organizations`** and **3 rows in
-   `public.campus_posts`**, immediately, even with zero Auth users.
-3. Save your URL and publishable key in `local.properties` on disk.
-4. Check configuration with
-   `java -jar gradle/wrapper/gradle-wrapper.jar :shared:checkSupabaseConfig`.
-5. Rebuild and relaunch. For Android, install the newly built APK.
-
-## Configure Google login
-
-Google sign-in must be enabled in your own Supabase and Google Cloud projects:
-
-1. In Supabase, open **Authentication → Sign In / Providers → Google** and copy the callback URL shown there (normally `https://YOUR_PROJECT.supabase.co/auth/v1/callback`).
-2. In Google Cloud Console, configure the OAuth consent screen (branding, audience and support contact). While the app is in testing, add the Google accounts you will use as test users.
-3. Create an OAuth client of type **Web application**. Add the Supabase callback URL from step 1 to its **Authorized redirect URIs**. Copy the client ID and client secret.
-4. Back in Supabase's Google provider settings, enable Google and paste the client ID and secret, then save. Keep the secret in Supabase, never in this repository or the app.
-5. In Supabase **Authentication → URL Configuration**, add `stagecall://auth` to the redirect allow list for Android and iOS. For web, add the exact origin used to run the app (including port) and your production site URL. For desktop, add `http://localhost:*` (the SDK chooses a local port).
-6. Rebuild and launch the app, select **Continue with Google**, and approve the consent screen. Verify the user appears in Supabase **Authentication → Users**, restart the app to check session restoration, and use **Profile → Sign out** to test the signed-out screen.
-
-The Google account establishes a Supabase Auth session. The catalog remains public,
-profile editing remains disabled, and bookmarks are stored locally. Membership
-applications are stored per account after the SQL migration below is applied. Do not enable anonymous sign-ins.
-
-In the Table Editor, choose schema `public` and open `organizations` or
-`campus_posts`. Each organization or post is a real row with editable columns.
-Edit a name or post in Supabase; the app refreshes automatically every 30 seconds
-while it is open.
-The SQL Editor and Table Editor can manage data. Clients can only read
-organizations and public posts; RLS hides members-only posts and denies writes.
-No sample student profiles, memberships, or applications are exposed publicly.
-
-`setup.sql` is also available as migration
-`supabase/migrations/202611180003_public_catalog.sql`. Use either one, not both
-as separate setup steps. Both are safe to rerun: existing row values are preserved.
-The script disables the previous automatic private-snapshot signup trigger and
-leaves any old `stagecall_state` data untouched. Migrations `001` and `002` are
-legacy files for the earlier anonymous-session prototype and are not needed now.
-
-The repository starts empty. All displayed catalog records come from the database
-or its verified local cache; no sample records are compiled into the app. Caches
-from the previous private-snapshot implementation are ignored. Background refresh
-runs without a connection-status banner. Failed reads keep the previous catalog;
-initial connection failures show **No database data loaded**.
-
-The cache uses Android preferences, a desktop file in `~/.stagecall/`, iOS user
-defaults, or browser local storage. Theme settings remain separate. No guest edits
-or uploads are queued. Without project configuration, only a previously verified
-public catalog cache can be displayed.
-
-## Demo limitations
-
-File uploads and device notifications are not connected.
-Organization updates and other officer management screens are not connected.
-
-## Membership applications
-
-After running `supabase/setup.sql`, run the entire
-`supabase/migrations/202611180004_membership_applications.sql` file in the Supabase
-SQL Editor. Rebuild and install the app. Signed-in students can submit one application
-per organization, then see their own application and status across devices.
-The database enforces account ownership, prevents duplicate applications and rejects
-submissions when recruitment is closed. Student accounts cannot change decisions.
-
-Run `supabase/migrations/202611180005_organization_roles.sql` after the applications
-migration to enable organization roles and review. A project administrator assigns a
-president in the SQL Editor after that person has signed in at least once. Replace
-the sample organization ID and email below with the intended values:
+After migrations `004` and `005`, a project administrator can assign a president once that person has signed in. Replace the example organization ID and email before running this in the Supabase SQL Editor:
 
 ```sql
 insert into public.organization_memberships (organization_id, user_id, role)
@@ -195,11 +64,42 @@ select '1', id, 'President' from auth.users where email = 'president@example.com
 on conflict (organization_id, user_id) do update set role = excluded.role;
 ```
 
-If the query inserts zero rows, check the email in Authentication → Users. The same
-person can be president in one organization and a member in another. Presidents can
-open the organization and select **Review applications** to accept or reject pending
-applications, optionally including a note. Accepting creates a membership; rejecting
-does not. The database validates the president's organization for each decision.
-Role changes and decisions refresh while the app is open; restart or retry if needed.
-The organization member count and members-only posts are still catalog data and do
-not yet update based on these memberships.
+If no row is inserted, check the email in **Authentication → Users**. `supabase/admin/assign_game_club_president.sql` is a specific assignment script; review its email and organization name before running it. A president can open their organization and select **Review applications**. The database checks their organization when recording a decision. Presidents can also use **Edit organization** to change the About heading and description, open or close registration, and choose a banner color.
+
+## Try the membership workflow
+
+1. Sign in and open an organization in **Directory** whose recruitment is open.
+2. Apply with a student ID, year level, reason, and consent.
+3. Open **Applications** to see the pending application and its details.
+4. Sign in as the assigned president to accept or reject it. An acceptance creates a membership.
+5. Return to the student account to see the decision and membership in the app.
+
+The database prevents duplicate applications and closed-recruitment submissions. Reapplication after rejection is currently unavailable. Applications and roles refresh while the app is open.
+
+## Data and limitations
+
+The catalog is read from Supabase and refreshed approximately every 30 seconds. A verified public catalog cache can be used after a failed read; an initial failure shows **No database data loaded**. The cache uses Android preferences, a desktop file in `~/.stagecall/`, iOS user defaults, or browser local storage. Bookmarks, theme settings, applications, memberships, and the profile bio are tied to the signed-in account; the bio is limited to 500 characters.
+
+Catalog data can be edited through the Supabase Table Editor. Clients can read organizations and public posts; RLS hides members-only posts and denies catalog writes. Organization member counts and members-only posts are not yet connected to memberships. File uploads, device notifications, and organization update management are not connected.
+
+## Project structure
+
+Shared Kotlin code is under `shared/src/commonMain/kotlin/com/weissev/stagecall/`:
+
+- `App.kt` connects authentication, navigation, stores, and screens.
+- `screens/` contains the feed, directory, organization, application, review, notification, and profile screens.
+- `data/` contains models, repository state, Supabase stores, and caching.
+- `components/` contains shared UI components and `StageCallTheme.kt`.
+- `supabase/` contains catalog setup, migrations, and administrator scripts.
+
+## Tests
+
+```sh
+./gradlew :shared:jvmTest :desktopApp:compileKotlin
+```
+
+The shared tests cover membership workflows, persistence, notifications, theme settings, and seed data. For a Windows network drive, disabling incremental compilation and file watching can avoid path conflicts:
+
+```text
+java -jar gradle/wrapper/gradle-wrapper.jar :shared:jvmTest :desktopApp:compileKotlin --no-configuration-cache --no-watch-fs "-Pkotlin.incremental=false"
+```

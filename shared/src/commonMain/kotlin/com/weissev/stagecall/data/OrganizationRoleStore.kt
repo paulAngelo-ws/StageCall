@@ -31,6 +31,15 @@ private data class DecisionParameter(
     @SerialName("p_decision") val decision: String,
 )
 
+@Serializable
+private data class SettingsParameter(
+    @SerialName("p_organization_id") val organizationId: String,
+    @SerialName("p_about_headline") val headline: String,
+    @SerialName("p_full_description") val description: String,
+    @SerialName("p_is_recruiting") val recruiting: Boolean,
+    @SerialName("p_banner_color") val color: String,
+)
+
 internal class OrganizationRoleStore(private val client: SupabaseClient, private val repository: StageCallRepository) {
     var roles by mutableStateOf<Map<String, String>>(emptyMap())
         private set
@@ -44,6 +53,28 @@ internal class OrganizationRoleStore(private val client: SupabaseClient, private
         private set
     var reviewing by mutableStateOf(false)
         private set
+
+    var settingsError by mutableStateOf<String?>(null)
+        private set
+    var savingSettings by mutableStateOf(false)
+        private set
+
+    suspend fun saveSettings(org: Organization, headline: String, description: String, recruiting: Boolean, color: String): Boolean {
+        savingSettings = true
+        settingsError = null
+        return try {
+            client.postgrest.rpc("update_organization_settings", Json.encodeToJsonElement(
+                SettingsParameter(org.id, headline.trim(), description.trim(), recruiting, color)
+            ).jsonObject)
+            val current = repository.organizations.firstOrNull { it.id == org.id }
+            if (current != null) repository.updateOrganization(current.copy(aboutHeadline = headline.trim(),
+                fullDescription = description.trim(), isRecruiting = recruiting, bannerColor = color))
+            true
+        } catch (e: CancellationException) { throw e } catch (e: Exception) {
+            settingsError = "Could not save settings. Check your connection and president access, then try again."
+            false
+        } finally { savingSettings = false }
+    }
 
     suspend fun refreshRoles() {
         try {
@@ -60,8 +91,11 @@ internal class OrganizationRoleStore(private val client: SupabaseClient, private
         }
     }
 
+    private var reviewOrganizationId: String? = null
+
     suspend fun loadApplications(organizationId: String) {
-        applications = emptyList()
+        if (reviewOrganizationId != organizationId) applications = emptyList()
+        reviewOrganizationId = organizationId
         reviewing = true
         reviewError = null
         try {
@@ -79,6 +113,12 @@ internal class OrganizationRoleStore(private val client: SupabaseClient, private
             client.postgrest.rpc("decide_organization_application", Json.encodeToJsonElement(DecisionParameter(
                 organizationId, id, if (accepted) "Accepted" else "Rejected", message.trim(),
             )).jsonObject)
+            applications = applications.map { application ->
+                if (application.id == id) application.copy(
+                    status = if (accepted) ApplicationStatus.Accepted else ApplicationStatus.Rejected,
+                    decision = message.trim(),
+                ) else application
+            }
             true
         } catch (e: CancellationException) { throw e } catch (e: Exception) {
             reviewError = "Could not save the decision. The application may already be reviewed, your access may have changed, or your connection may be unavailable."

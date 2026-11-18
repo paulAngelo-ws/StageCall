@@ -58,7 +58,7 @@ fun NotificationsPage(
     val visibleNotifications = if (unreadOnly) notifications.filter { !it.isRead } else notifications
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 24.dp, vertical = 28.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 24.dp, top = 8.dp, end = 24.dp, bottom = 28.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
