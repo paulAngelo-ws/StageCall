@@ -89,7 +89,6 @@ val ubSoitOrganizations =
                     "Currently enrolled UB SOIT student",
                     "Attend the developer onboarding session",
                 ),
-            deadline = "November 25, 2026",
             nextActivityTitle = "Kotlin & Compose Study Jam",
             nextActivitySchedule = "Nov 16 · 3:00 PM · SIT AVR",
         ),
@@ -111,7 +110,6 @@ val ubSoitOrganizations =
                     "Currently enrolled UB student",
                     "Complete basic Linux & networking assessment",
                 ),
-            deadline = "November 22, 2026",
             nextActivityTitle = "Intro to Capture the Flag Workshop",
             nextActivitySchedule = "Nov 19 · 4:30 PM · IT Lab 3",
         ),
@@ -129,7 +127,6 @@ val ubSoitOrganizations =
             isRecruiting = true,
             requirements =
                 listOf("Currently enrolled SIT student", "Attend one orientation session"),
-            deadline = "November 20, 2026",
             nextActivityTitle = "Volunteer orientation",
             nextActivitySchedule = "Nov 18 · 4:00 PM · Student Center",
         ),
@@ -147,7 +144,6 @@ val ubSoitOrganizations =
             isRecruiting = true,
             requirements =
                 listOf("Open to all BSCS and BSIT students", "Submit membership registration form"),
-            deadline = "November 28, 2026",
             nextActivityTitle = "Algorithmic Coding Sprint",
             nextActivitySchedule = "Nov 21 · 1:30 PM · IT Lab 1",
         ),
@@ -166,7 +162,6 @@ val ubSoitOrganizations =
             isRecruiting = false,
             requirements =
                 listOf("Portfolio or sample project submission", "Interview with core team leads"),
-            deadline = "Closed for Semester 1",
             nextActivityTitle = "Game Jam Showcase",
             nextActivitySchedule = "Dec 04 · 2:00 PM · FGB Hall",
         ),

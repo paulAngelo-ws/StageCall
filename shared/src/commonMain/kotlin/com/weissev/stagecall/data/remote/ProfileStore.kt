@@ -71,7 +71,7 @@ internal class ProfileStore(
         } finally { loading = false }
     }
 
-    // Save acknowledged changes through CollectionCache.kt. The profile update function is defined in 202611180008_profile_preferences.sql.
+    // Save acknowledged changes through CollectionCache.kt. The profile update function checks the caller before saving changes.
     private suspend fun saveCachedProfile() {
         cache.saveLocal(userId, cacheJson.encodeToJsonElement(ProfileRow(userId, bio, darkTheme, bookmarks)).jsonObject)
     }

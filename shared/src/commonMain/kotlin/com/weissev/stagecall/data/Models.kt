@@ -58,6 +58,9 @@ data class Member(
 
 @Serializable
 enum class NotificationType {
+    ApplicationReview,
+    RegistrationReview,
+    RegistrationDecision,
     Post,
     Activity,
     Organization,
@@ -76,6 +79,7 @@ data class StageCallNotification(
     val applicationId: Int? = null,
     val createdAt: Instant = Clock.System.now(),
     val isRead: Boolean = false,
+    val registrationId: Int? = null,
 )
 
 @Serializable
@@ -90,8 +94,8 @@ data class Organization(
     val memberCount: Int,
     val isRecruiting: Boolean,
     val requirements: List<String>,
-    val deadline: String,
     val nextActivityTitle: String,
     val nextActivitySchedule: String,
     val bannerColor: String = "blue",
+    val photoPath: String? = null,
 )

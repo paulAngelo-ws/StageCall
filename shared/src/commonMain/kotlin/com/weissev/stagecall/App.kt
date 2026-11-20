@@ -33,8 +33,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.weissev.stagecall.data.NotificationType
 import com.weissev.stagecall.data.RepositoryPersistence
 import com.weissev.stagecall.data.StageCallRepository
 import com.weissev.stagecall.data.Student
@@ -58,6 +58,7 @@ import com.weissev.stagecall.ui.applications.ApplyPage
 import com.weissev.stagecall.ui.applications.OrganizationRegistrationDetailsPage
 import com.weissev.stagecall.ui.applications.ReviewApplicationsPage
 import com.weissev.stagecall.ui.auth.LoginScreen
+import com.weissev.stagecall.ui.auth.UniversityAccountRequiredScreen
 import com.weissev.stagecall.ui.components.NavigationBar
 import com.weissev.stagecall.ui.components.StageCallLoadingScreen
 import com.weissev.stagecall.ui.components.StatusPanel
@@ -65,6 +66,9 @@ import com.weissev.stagecall.ui.components.TopHeader
 import com.weissev.stagecall.ui.feed.FeedPage
 import com.weissev.stagecall.ui.notifications.NotificationsPage
 import com.weissev.stagecall.ui.organizations.DirectoryPage
+import com.weissev.stagecall.ui.organizations.OrganizationMembersPage
+import com.weissev.stagecall.ui.organizations.CreateOrganizationPostPage
+import com.weissev.stagecall.ui.organizations.EditOrganizationPage
 import com.weissev.stagecall.ui.organizations.OrganizationPage
 import com.weissev.stagecall.ui.profile.ProfilePage
 import com.weissev.stagecall.ui.registrations.OrganizationRegistrationPage
@@ -82,6 +86,10 @@ import kotlinx.serialization.json.jsonPrimitive
 private enum class Screen {
     Main,
     Organization,
+    EditOrganization,
+    CreateOrganizationPost,
+    OrganizationMembers,
+    OrganizationMemberProfile,
     Apply,
     Status,
     Notifications,
@@ -97,6 +105,7 @@ private data class NotificationOrigin(
     val organizationId: String = "",
     val postId: Int? = null,
     val applicationId: Int = 0,
+    val registrationId: Int = 0,
 )
 
 /** One shared entry point for Android, iOS, desktop and web. */
@@ -139,10 +148,17 @@ fun App() {
     if (userId.isBlank() || accountEmail.count { it == '@' } != 1 || accountEmail.substringBefore('@').isEmpty() ||
         !(emailDomain == "ubaguio.edu" || emailDomain.endsWith(".ubaguio.edu"))) {
         StageCallTheme {
-            Column(Modifier.fillMaxSize().padding(32.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Please sign in with your University of Baguio Google account.", textAlign = TextAlign.Center)
-                TextButton(onClick = { scope.launch { try { AuthSession.signOut() } catch (e: Exception) { authError = e.message ?: "Could not sign out. Please try again." } } }) { Text("Sign out") }
-                authError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            UniversityAccountRequiredScreen(error = authError) {
+                scope.launch {
+                    authError = null
+                    try {
+                        AuthSession.signOut()
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        authError = e.message ?: "Could not sign out. Please try again."
+                    }
+                }
             }
         }
         return
@@ -272,6 +288,9 @@ private fun SignedInApp(
     var selectedTab by remember { mutableStateOf(0) }
     var page by remember { mutableStateOf(Screen.Main) }
     var organizationId by remember { mutableStateOf("") }
+    val publishingPost = page == Screen.CreateOrganizationPost && roleStore.creatingPost
+    var selectedMemberId by remember { mutableStateOf<String?>(null) }
+    var editingPostId by remember { mutableStateOf<Int?>(null) }
     var organizationPostId by remember { mutableStateOf<Int?>(null) }
     var registrationId by remember(userId) { mutableStateOf(0) }
     val registrationPageOpen = page == Screen.OrganizationRegistration || page == Screen.OrganizationRegistrationDetails
@@ -294,24 +313,30 @@ private fun SignedInApp(
         page = Screen.Organization
     }
 
-    // A notification can open an organization or an application. Keep the original route so Back can reopen it.
+    // Keep the original route so Back can reopen it after viewing notifications.
     fun goBack() {
         if (page == Screen.Notifications) {
             organizationId = notificationOrigin.organizationId
             organizationPostId = notificationOrigin.postId
             applicationId = notificationOrigin.applicationId
+            registrationId = notificationOrigin.registrationId
             page = notificationOrigin.page
             notificationDetailOpen = false
             return
         }
-        if (notificationDetailOpen && (page == Screen.Organization || page == Screen.Status)) {
+        if (notificationDetailOpen &&
+            (page == Screen.Organization || page == Screen.Status || page == Screen.ReviewApplications ||
+                page == Screen.OrganizationRegistrationDetails || page == Screen.OrganizationRegistrationReview)
+        ) {
             page = Screen.Notifications
             notificationDetailOpen = false
             return
         }
         page =
             when (page) {
-                Screen.Apply, Screen.ReviewApplications -> Screen.Organization
+                Screen.Apply, Screen.EditOrganization, Screen.CreateOrganizationPost,
+                Screen.ReviewApplications, Screen.OrganizationMembers -> Screen.Organization
+                Screen.OrganizationMemberProfile -> Screen.OrganizationMembers
                 Screen.OrganizationRegistrationDetails, Screen.OrganizationRegistrationReview -> Screen.OrganizationRegistration
                 else -> Screen.Main
             }
@@ -333,13 +358,15 @@ private fun SignedInApp(
                             TopHeader(
                                 unreadCount = notificationStore.unreadCount,
                                 onSearchClick = {
+                                    if (publishingPost) return@TopHeader
                                     selectedTab = 1
                                     page = Screen.Main
                                     notificationDetailOpen = false
                                 },
                             ) {
+                                if (publishingPost) return@TopHeader
                                 if (page != Screen.Notifications && !notificationDetailOpen) {
-                                    notificationOrigin = NotificationOrigin(page, organizationId, organizationPostId, applicationId)
+                                    notificationOrigin = NotificationOrigin(page, organizationId, organizationPostId, applicationId, registrationId)
                                 }
                                 notificationDetailOpen = false
                                 page = Screen.Notifications
@@ -354,6 +381,7 @@ private fun SignedInApp(
                             if (page != Screen.Main) {
                                 TextButton(
                                     onClick = { goBack() },
+                                    enabled = !publishingPost,
                                     modifier = Modifier.padding(start = 12.dp, top = 4.dp),
                                 ) {
                                     Icon(
@@ -370,6 +398,7 @@ private fun SignedInApp(
                         Column {
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                             NavigationBar(if (page == Screen.ReviewApplications) 1 else selectedTab) {
+                                if (publishingPost) return@NavigationBar
                                 selectedTab = it
                                 page = Screen.Main
                                 notificationDetailOpen = false
@@ -392,8 +421,21 @@ private fun SignedInApp(
                                 repository = repository,
                                 store = notificationStore,
                                 onOpenNotification = { notification ->
+                                    if (!notification.isRead) {
+                                        scope.launch { notificationStore.markRead(notification.id) }
+                                    }
                                     notificationDetailOpen = true
-                                    if (notification.applicationId != null) { // Choose the application details route when the notification has an application ID.
+                                    if (notification.type == NotificationType.RegistrationReview) {
+                                        page = Screen.OrganizationRegistrationReview
+                                    } else if (notification.type == NotificationType.RegistrationDecision && notification.registrationId != null) {
+                                        registrationId = notification.registrationId
+                                        page = Screen.OrganizationRegistrationDetails
+                                    } else if (notification.type == NotificationType.ApplicationReview) {
+                                        organizationId = notification.organizationId
+                                        organizationPostId = null
+                                        page = Screen.ReviewApplications
+                                        scope.launch { roleStore.refreshRoles() }
+                                    } else if (notification.applicationId != null) { // Choose the application details route when the notification has an application ID.
                                         applicationId = notification.applicationId // Keep the ID for ApplicationStatusScreen.kt.
                                         page = Screen.Status
                                     } else {
@@ -461,17 +503,86 @@ private fun SignedInApp(
                             Screen.Organization ->
                                 OrganizationPage(
                                     repository = repository,
-                                    roleStore = roleStore,
-                                    onSettingsSaved = { showSuccess("Organization settings saved") },
+                                    onCreatePost = {
+                                        editingPostId = null
+                                        roleStore.clearPostError()
+                                        page = Screen.CreateOrganizationPost
+                                    },
+                                    onEditPost = { postId ->
+                                        editingPostId = postId
+                                        roleStore.clearPostError()
+                                        page = Screen.CreateOrganizationPost
+                                    },
+                                    onEdit = {
+                                        roleStore.clearSettingsError()
+                                        page = Screen.EditOrganization
+                                    },
                                     applicationsReady = applicationStore.loaded,
                                     rolesReady = roleStore.loaded,
                                     roleError = roleStore.error,
                                     isPresident = roleStore.roles[organizationId] == "President",
                                     onRetryRoles = { scope.launch { roleStore.refreshRoles() } },
                                     onReview = { page = Screen.ReviewApplications },
+                                    onOpenMembers = { page = Screen.OrganizationMembers },
                                     id = organizationId,
                                     initialPostId = organizationPostId,
                                     onApply = { page = Screen.Apply },
+                                )
+                            Screen.CreateOrganizationPost -> {
+                                val organization = repository.organizations.firstOrNull { it.id == organizationId }
+                                val post = editingPostId?.let { id ->
+                                    repository.posts.firstOrNull { it.id == id && it.organizationId == organizationId }
+                                }
+                                when {
+                                    organization == null -> Text("This organization is no longer available.", Modifier.padding(24.dp))
+                                    roleStore.roles[organizationId] != "President" ->
+                                        Text("President access is required to manage posts.", Modifier.padding(24.dp))
+                                    editingPostId != null && post == null ->
+                                        Text("This post is no longer available.", Modifier.padding(24.dp))
+                                    else -> CreateOrganizationPostPage(
+                                        organization = organization,
+                                        store = roleStore,
+                                        post = post,
+                                        onCancel = { page = Screen.Organization },
+                                        onPublished = { postId ->
+                                            organizationPostId = postId
+                                            page = Screen.Organization
+                                            showSuccess(if (post == null) "Post published" else "Post updated")
+                                        },
+                                    )
+                                }
+                            }
+                            Screen.EditOrganization -> {
+                                val organization = repository.organizations.firstOrNull { it.id == organizationId }
+                                when {
+                                    organization == null -> Text("This organization is no longer available.", Modifier.padding(24.dp))
+                                    roleStore.roles[organizationId] != "President" ->
+                                        Text("President access is required to edit this organization.", Modifier.padding(24.dp))
+                                    else -> EditOrganizationPage(
+                                        organization = organization,
+                                        store = roleStore,
+                                        onCancel = { page = Screen.Organization },
+                                        onSaved = {
+                                            page = Screen.Organization
+                                            showSuccess("Organization settings saved")
+                                        },
+                                    )
+                                }
+                            }
+                            Screen.OrganizationMembers, Screen.OrganizationMemberProfile ->
+                                OrganizationMembersPage(
+                                    organizationId = organizationId,
+                                    organizationName = repository.organizations.firstOrNull { it.id == organizationId }?.name.orEmpty(),
+                                    selectedMemberId = selectedMemberId.takeIf { page == Screen.OrganizationMemberProfile },
+                                    viewerId = userId,
+                                    store = roleStore,
+                                    onOpenMember = {
+                                        selectedMemberId = it
+                                        page = Screen.OrganizationMemberProfile
+                                    },
+                                    onMembershipChanged = {
+                                        scope.launch { runCatching { persistence.synchronize() } }
+                                    },
                                 )
                             Screen.ReviewApplications -> if (roleStore.loaded && roleStore.roles[organizationId] == "President") {
                                 ReviewApplicationsPage(

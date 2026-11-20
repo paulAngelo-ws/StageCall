@@ -88,7 +88,7 @@ internal class OrganizationRegistrationStore(
         private set
 
     suspend fun refresh(reviewing: Boolean) = lock.withLock {
-        // Check the admin role defined in 202611180015_organization_registrations.sql before loading the review queue.
+        // Check the admin role in stagecall_admins before loading the review queue.
         accessError = read("Could not check registration admin access. StageCall will retry automatically.") {
             isAdmin = client.from("stagecall_admins").select {
                 filter { eq("user_id", userId) }
@@ -134,7 +134,7 @@ internal class OrganizationRegistrationStore(
     suspend fun submit(draft: RegistrationDraft): Boolean {
         if (working || !draft.complete) return false
         return runRequest("Could not submit your registration. Check your connection and whether you already have a pending application for this name.") {
-            // OrganizationRegistrationScreen.kt sends its draft here. The table and insert policy are in 202611180015_organization_registrations.sql.
+            // OrganizationRegistrationScreen.kt sends its draft here. The registration policy checks who can submit.
             val row = client.from("organization_registrations").insert(draft.copy(
                 name = draft.name.trim(),
                 category = draft.category.trim(),
@@ -149,7 +149,7 @@ internal class OrganizationRegistrationStore(
     suspend fun decide(id: Int, approve: Boolean, note: String): Boolean {
         if (working || !isAdmin) return false
         return runRequest("Could not save the decision. The application may have already been reviewed, or an organization with this name may already exist.") {
-            // The admin’s decision goes to the updated review function in 202611180016_allow_admin_registration_review.sql.
+            // The admin’s decision goes to the registration review function.
             client.postgrest.rpc("decide_organization_registration",
                 Json.encodeToJsonElement(RegistrationDecision(id, approve, note.trim())).jsonObject)
             pending = pending.filter { it.id != id }

@@ -211,7 +211,7 @@ class StageCallRepository {
         privatePost: Boolean,
         schedule: String,
     ): Boolean {
-        if (title.isBlank() || message.isBlank() || (category == "Events" && schedule.isBlank()))
+        if (title.isBlank() || message.isBlank())
             return false
         posts.add(
             0,

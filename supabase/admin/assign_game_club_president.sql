@@ -1,4 +1,4 @@
--- Run once in Supabase SQL Editor after migrations 004 and 005.
+-- Run once in Supabase SQL Editor after installing the StageCall schema.
 -- The Google account must have signed in to StageCall first.
 -- The resulting membership row is read by OrganizationRoleStore.kt to enable president actions for this club.
 begin;

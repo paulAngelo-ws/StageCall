@@ -126,9 +126,13 @@ fun DirectoryPage(
         // Filter the directory with the typed search, then apply the selected sort order.
         val searchText = query.trim() // Ignore spaces typed at either end of the search.
         var results =
-            repository.organizations.filter { organization ->
-                organization.name.contains(searchText, ignoreCase = true) ||
-                    organization.category.contains(searchText, ignoreCase = true) // A category match can show a card even when its name does not match.
+            when {
+                query.isEmpty() -> repository.organizations.toList()
+                searchText.isEmpty() -> emptyList()
+                else -> repository.organizations.filter { organization ->
+                    organization.name.contains(searchText, ignoreCase = true) ||
+                        organization.category.contains(searchText, ignoreCase = true)
+                }
             }
         results =
             when (sort) {

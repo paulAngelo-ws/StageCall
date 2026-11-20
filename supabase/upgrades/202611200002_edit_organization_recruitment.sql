@@ -1,14 +1,12 @@
--- Run after migrations 004 and 005. Presidents can edit only their own organization.
+-- Run on installed StageCall databases to enable editing recruitment details.
 begin;
-alter table public.organizations add column if not exists banner_color text not null default 'blue';
-alter table public.organizations drop constraint if exists organizations_banner_color_check;
-alter table public.organizations add constraint organizations_banner_color_check
-    check (banner_color in ('blue', 'green', 'purple', 'orange', 'indigo', 'gold'));
 
--- OrganizationRoleStore.kt sends edited settings here. The update trigger in 202611180014_organization_notifications.sql can announce the change.
+drop function if exists public.update_organization_settings(text, text, text, boolean, text);
+
 create or replace function public.update_organization_settings(
     p_organization_id text, p_about_headline text, p_full_description text,
-    p_is_recruiting boolean, p_banner_color text
+    p_is_recruiting boolean, p_banner_color text,
+    p_requirements text[] default null, p_deadline text default null
 ) returns void language plpgsql security definer set search_path = '' as $$
 begin
     perform 1 from public.organization_memberships m
@@ -25,10 +23,19 @@ begin
     end if;
     update public.organizations set about_headline = trim(p_about_headline),
         full_description = trim(p_full_description), is_recruiting = p_is_recruiting,
-        banner_color = p_banner_color where id = p_organization_id;
+        banner_color = p_banner_color,
+        requirements = coalesce((
+            select jsonb_agg(btrim(entry) order by position)
+            from unnest(p_requirements) with ordinality as submitted(entry, position)
+            where btrim(entry) <> ''
+        ), case when p_requirements is not null then '[]'::jsonb else requirements end),
+        deadline = coalesce(btrim(p_deadline), deadline)
+    where id = p_organization_id;
     if not found then raise exception 'Organization not found'; end if;
 end;
 $$;
-revoke all on function public.update_organization_settings(text, text, text, boolean, text) from public, anon, authenticated;
-grant execute on function public.update_organization_settings(text, text, text, boolean, text) to authenticated;
+
+revoke all on function public.update_organization_settings(text, text, text, boolean, text, text[], text) from public, anon, authenticated;
+grant execute on function public.update_organization_settings(text, text, text, boolean, text, text[], text) to authenticated;
+
 commit;

@@ -52,13 +52,17 @@ internal class MediaCache(
     private var checkedAt = 0L
 
     // FeedScreen.kt sends the storage path from the post. Uploads in OrganizationRoleStore.kt get unique paths, so the same path can reuse its image.
-    suspend fun post(path: String): ImageBitmap = withContext(Dispatchers.Default) {
-        val key = "post:$path" // Use the upload path to identify this photo across visits.
+    suspend fun post(path: String): ImageBitmap = storedImage("post-images", path, "post:$path")
+
+    suspend fun organizationPhoto(path: String): ImageBitmap =
+        storedImage("organization-photos", path, "organization-photo:$path")
+
+    private suspend fun storedImage(bucket: String, path: String, key: String): ImageBitmap = withContext(Dispatchers.Default) {
         val transfer = postLocks[key.hashCode().mod(postLocks.size)] // Make requests for the same path wait for each other.
         transfer.withLock {
             check(client.auth.currentUserOrNull()?.id == account)
             lock.withLock { read(key) }?.let { return@withLock it } // Return the local image as soon as it can be read.
-            val bytes = client.storage.from("post-images").downloadAuthenticated(path) // Download through the signed-in client if the image is absent.
+            val bytes = client.storage.from(bucket).downloadAuthenticated(path) // Download through the signed-in client if the image is absent.
             val image = bytes.decodeToImageBitmap()
             if (client.auth.currentUserOrNull()?.id == account) lock.withLock { save(key, bytes) }
             image

@@ -4,7 +4,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.weissev.stagecall.data.NotificationType
-import com.weissev.stagecall.data.Organization
 import com.weissev.stagecall.data.StageCallNotification
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
@@ -22,8 +21,9 @@ import kotlin.time.Instant
 @Serializable
 private data class NotificationRow(
     val id: Int,
-    @SerialName("organization_id") val organizationId: String,
+    @SerialName("organization_id") val organizationId: String? = null,
     @SerialName("post_id") val postId: Int? = null,
+    @SerialName("registration_id") val registrationId: Int? = null,
     val kind: String,
     val title: String,
     val message: String,
@@ -57,9 +57,16 @@ internal class NotificationStore(private val client: SupabaseClient, private val
                 legacyRows.map { it.copy(isRead = it.id in readIds) }
             }
             notifications = rows.map { row -> // Turn database rows into the display data used by NotificationsScreen.kt.
-                StageCallNotification(row.id, row.organizationId,
-                    if (row.kind == "post") NotificationType.Post else NotificationType.Organization,
-                    row.title, row.message, postId = row.postId, createdAt = row.createdAt, isRead = row.isRead)
+                StageCallNotification(row.id, row.organizationId.orEmpty(),
+                    when (row.kind) {
+                        "post" -> NotificationType.Post
+                        "application_review" -> NotificationType.ApplicationReview
+                        "registration_review" -> NotificationType.RegistrationReview
+                        "registration_decision" -> NotificationType.RegistrationDecision
+                        else -> NotificationType.Organization
+                    },
+                    row.title, row.message, postId = row.postId, createdAt = row.createdAt, isRead = row.isRead,
+                    registrationId = row.registrationId)
             }.sortedWith(compareByDescending<StageCallNotification> { it.createdAt }.thenByDescending { it.id })
             loaded = true
             error = null
@@ -72,7 +79,7 @@ internal class NotificationStore(private val client: SupabaseClient, private val
 
     suspend fun markRead(id: Int? = null) = mutex.withLock {
         try {
-            // Send one notification ID or a bulk mark-read request to 202611180014_organization_notifications.sql.
+            // Send one notification ID or a bulk mark-read request to the mark-read function.
             client.postgrest.rpc("mark_organization_notifications_read", Json.encodeToJsonElement(MarkReadParameter(id)).jsonObject)
             notifications = notifications.map { if (id == null || it.id == id) it.copy(isRead = true) else it } // Update the read indicator after Supabase saves the receipt.
             error = null

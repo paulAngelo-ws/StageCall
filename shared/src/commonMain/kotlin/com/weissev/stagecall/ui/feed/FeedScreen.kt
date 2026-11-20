@@ -17,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material3.Button
@@ -138,6 +139,7 @@ fun FeedPage(
 internal fun PostCard(
     post: CampusPost, organization: Organization, now: Instant,
     onOpenOrganization: ((String) -> Unit)? = null, onOpenPost: ((String, Int) -> Unit)? = null,
+    onEditPost: ((Int) -> Unit)? = null,
 ) {
             StageCallCard(
                 modifier = Modifier.fillMaxWidth(),
@@ -157,20 +159,22 @@ internal fun PostCard(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        OrganizationThumbnail()
+                        OrganizationThumbnail(organization.photoPath)
                         Column(
                             modifier = Modifier.weight(1f),
                             verticalArrangement = Arrangement.spacedBy(2.dp),
                         ) {
-                            Text(
-                                organization.name,
-                                style = MaterialTheme.typography.titleMedium,
-                            )
+                            Text(organization.name, style = MaterialTheme.typography.titleMedium)
                             Text(
                                 text = relativeTime(post.createdAt, now),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
+                        }
+                        if (onEditPost != null) {
+                            IconButton(onClick = { onEditPost(post.id) }) {
+                                Icon(Icons.Outlined.Edit, contentDescription = "Edit post")
+                            }
                         }
                     }
                     if (post.imagePath != null) PostImage(post.imagePath)
@@ -203,7 +207,7 @@ internal fun PostCard(
 }
 
 @Composable
-private fun PostImage(path: String) {
+internal fun PostImage(path: String) {
     var viewing by remember(path) { mutableStateOf(false) }
     // MediaCache.kt receives the storage path and returns an image from the cache or Supabase Storage.
     val media = LocalMediaCache.current

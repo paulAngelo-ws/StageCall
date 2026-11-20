@@ -23,7 +23,7 @@ import kotlinx.serialization.json.jsonPrimitive
 internal data class CachedRow(val version: String, val data: JsonObject)
 
 @Serializable
-// Migration 202611180017_incremental_sync.sql returns rows to replace and IDs to remove. All other saved rows stay in the cache.
+// The incremental sync function returns rows to replace and IDs to remove. All other saved rows stay in the cache.
 internal data class CollectionChanges(val changed: Map<String, CachedRow>, val removed: List<String>) {
     fun applyTo(rows: Map<String, CachedRow>) = (rows - removed.toSet()) + changed // Remove the listed IDs first, then add or replace the rows Supabase sent.
 }
@@ -84,13 +84,13 @@ internal class CollectionCache(
     private suspend fun download(legacy: suspend () -> List<JsonObject>): Map<String, CachedRow> {
         if (!syncAvailable) return downloadLegacy(legacy)
         val current = rows.orEmpty()
-        // Send the collection name, account ID, and saved versions to 202611180017_incremental_sync.sql.
+        // Send the collection name, account ID, and saved versions to the incremental sync function.
         val changes = try {
             client.postgrest.rpc("stagecall_sync", JsonObject(mapOf(
                 "p_account" to JsonPrimitive(account), // Tell the SQL function which signed-in account this request belongs to.
                 "p_collection" to JsonPrimitive(collection), // Name the list to check, such as applications or public posts.
                 "p_known" to JsonObject(current.mapValues { JsonPrimitive(it.value.version) }), // Send each saved ID and version without resending the row data.
-            ))).decodeAs<CollectionChanges>() // Read the changed rows and removed IDs returned by migration 017.
+            ))).decodeAs<CollectionChanges>() // Read the changed rows and removed IDs returned by the sync function.
         } catch (e: PostgrestRestException) {
             // Only use the older full read when the sync function is missing. Network and permission errors go back to the feature store.
             if (e.code != "PGRST202") throw e // Only fall back when Supabase reports the function is missing.

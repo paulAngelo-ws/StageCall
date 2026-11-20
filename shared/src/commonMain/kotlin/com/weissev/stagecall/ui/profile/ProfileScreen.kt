@@ -122,7 +122,7 @@ internal fun ProfilePage(
             }
             Button(
                 enabled = profileStore.loaded,
-                onClick = { bio = profileStore.bio; editing = true },
+                onClick = { bio = profileStore.bio.ifBlank { "" }; editing = true },
                 modifier = Modifier.widthIn(max = 360.dp).fillMaxWidth().height(36.dp),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
             ) {
@@ -182,7 +182,7 @@ internal fun ProfilePage(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        OrganizationThumbnail()
+                        OrganizationThumbnail(organization.photoPath)
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(organization.name, style = MaterialTheme.typography.titleSmall)
                             Text(member.role, style = MaterialTheme.typography.bodySmall, color = muted)
@@ -227,18 +227,25 @@ internal fun ProfilePage(
     }
     // Keep the dialog open until the bio saves successfully or the user cancels.
     if (editing) {
+        val whitespaceOnly = bio.isNotEmpty() && bio.isBlank()
         AlertDialog(
             onDismissRequest = { if (!profileStore.saving) editing = false },
             title = { Text("Edit profile") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(bio, { if (it.length <= 500) bio = it }, Modifier.fillMaxWidth(),
-                        label = { Text("Bio") }, supportingText = { Text("${bio.length}/500") }, minLines = 3)
+                        label = { Text("Bio") },
+                        supportingText = {
+                            Text(if (whitespaceOnly) "Enter text or clear the bio." else "${bio.length}/500")
+                        },
+                        isError = whitespaceOnly,
+                        minLines = 3,
+                    )
                     profileStore.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 }
             },
             confirmButton = {
-                TextButton(enabled = !profileStore.saving, onClick = {
+                TextButton(enabled = !profileStore.saving && !whitespaceOnly, onClick = {
                     scope.launch { if (profileStore.save(bio)) { editing = false; onSaved() } }
                 }) { Text(if (profileStore.saving) "Saving..." else "Save") }
             },

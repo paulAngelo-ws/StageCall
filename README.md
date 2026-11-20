@@ -33,29 +33,15 @@ For iOS, open `iosApp` in Xcode.
 ## Follow the data through the app
 
 - **Signing in** follows the callback from `LoginScreen.kt` through `App.kt` to `AuthSession.kt`. Android handles the return URL in `MainActivity.kt`. iOS sends it from `iOSApp.swift` to `MainViewController.kt`.
-- **Loading the feed** starts in `SupabaseStateStore.kt`. `CollectionCache.kt` gives migration 017 the saved row versions and merges the returned changes. `RepositoryPersistence.kt` then updates `StageCallRepository.kt`, which supplies the posts to `FeedScreen.kt`.
+- **Loading the feed** starts in `SupabaseStateStore.kt`. `CollectionCache.kt` sends saved row versions to the sync function and merges the returned changes. `RepositoryPersistence.kt` then updates `StageCallRepository.kt`, which supplies the posts to `FeedScreen.kt`.
 - **Submitting an application** sends the form from `ApplyScreen.kt` to `ApplicationStore.kt`. The store updates `StageCallRepository.kt` and returns the ID. `App.kt` sends that ID to `ApplicationStatusScreen.kt`.
 - **Loading images** sends a post’s storage path from `FeedScreen.kt` or a Google photo URL from `ProfileScreen.kt` to `MediaCache.kt`. The platform implementations of `RepositoryCache.kt` handle local storage.
 - **Packaging** uses the Android drawable and mipmap resources referenced by `AndroidManifest.xml`. Xcode uses the images listed in `Assets.xcassets` and the settings in `Config.xcconfig` and `Info.plist`.
 
 ## Set up Supabase
 
-1. Create a Supabase project. Run `supabase/migrations/202611180003_public_catalog.sql` in its SQL Editor to create and seed the public catalog.
-2. Run these files in order in the SQL Editor:
-   - `supabase/migrations/202611180004_membership_applications.sql`
-   - `supabase/migrations/202611180005_organization_roles.sql`
-   - `supabase/migrations/202611180006_user_profiles.sql`
-   - `supabase/migrations/202611180007_organization_settings.sql`
-   - `supabase/migrations/202611180008_profile_preferences.sql`
-   - `supabase/migrations/202611180009_application_length_limits.sql`
-   - `supabase/migrations/202611180010_university_auth.sql`
-   - `supabase/migrations/202611180011_organization_posts.sql`
-   - `supabase/migrations/202611180012_post_audiences.sql`
-   - `supabase/migrations/202611180013_post_images.sql`
-   - `supabase/migrations/202611180014_organization_notifications.sql`
-   - `supabase/migrations/202611180015_organization_registrations.sql`
-   - `supabase/migrations/202611180016_allow_admin_registration_review.sql`
-   - `supabase/migrations/202611180017_incremental_sync.sql`
+1. In a new Supabase project, run `supabase/migrations/202611200001_stagecall_schema.sql` in the SQL Editor.
+2. To load the sample catalog, run `supabase/seed.sql`. It adds five organizations and three posts. Each organization starts with zero recorded members.
 3. Copy the entries from `local.properties.example` to the root `local.properties`, keeping any existing `sdk.dir` entry:
 
    ```properties
@@ -67,7 +53,21 @@ For iOS, open `iosApp` in Xcode.
 
 Use a publishable key or legacy `anon` key, never a secret or `service_role` key. Client credentials are embedded in the app; database row level security (RLS) controls access. `local.properties` is ignored by Git, and nonblank environment variables with the same names take precedence.
 
-Migration `003` is safe to rerun and preserves existing catalog values. Migrations `001` and `002` belong to an earlier prototype and are not required for a new setup. The catalog seed provides five organizations and three campus posts.
+### Existing Supabase projects
+
+For a project set up with the previous migrations through `017`, run `supabase/upgrades/202611200001_existing_projects.sql` in the SQL Editor. It keeps existing data, reconciles catalog counts from membership rows, and installs or updates the roster and application alerts. It also works on projects that already applied `018` or `019`. The new-project baseline is for an empty Supabase project.
+
+The organization photos upgrade below includes recruitment requirement editing from the earlier `002` upgrade.
+
+For existing installs, run `supabase/upgrades/202611200003_member_profile_details.sql` to enable email and shared organizations on member profiles.
+
+For existing installs, run `supabase/upgrades/202611200004_registration_notifications.sql` to enable registration alerts for admins and private decision alerts for applicants.
+
+For existing installs, run `supabase/upgrades/202611200005_organization_photos.sql` to add organization photos and remove the obsolete deadline column and its saved values.
+
+For existing installs, run `supabase/upgrades/202611200006_leave_organization.sql` to enable leaving an organization from its member list.
+
+For existing installs, run `supabase/upgrades/202611200007_edit_organization_posts.sql` to enable post editing for organization presidents.
 
 ### Google sign-in
 
@@ -80,27 +80,40 @@ Migration `003` is safe to rerun and preserves existing catalog values. Migratio
 
 ### Assign a president
 
-After migrations `004` and `005`, a project administrator can assign a president once that person has signed in. Replace the example organization ID and email before running this in the Supabase SQL Editor:
+Have the user sign in to StageCall with their university Google account at least once. In the Supabase SQL Editor, find the club's ID.
+
+```sql
+select id, name from public.organizations order by name;
+```
+
+Replace `1` with that ID and `president@ubaguio.edu` with the user's sign-in email. Run the assignment in the SQL Editor.
 
 ```sql
 insert into public.organization_memberships (organization_id, user_id, role)
-select '1', id, 'President' from auth.users where email = 'president@example.com'
-on conflict (organization_id, user_id) do update set role = excluded.role;
+select o.id, u.id, 'President'
+from public.organizations o
+cross join auth.users u
+where o.id = '1' and lower(u.email) = lower('president@ubaguio.edu')
+on conflict (organization_id, user_id) do update set role = excluded.role
+returning organization_id, user_id, role;
 ```
 
-If no row is inserted, check the email in **Authentication → Users**. `supabase/admin/assign_game_club_president.sql` is a specific assignment script; review its email and organization name before running it. A president can open their organization and select **Review applications**. The database checks their organization when recording a decision. Presidents can also use **Edit organization** to change the About heading and description, open or close registration, and choose a banner color.
+The returned row confirms the assignment. If the query returns no rows, check the club ID and the email in **Authentication → Users**. This promotes an existing member or creates a membership for the selected user. Any other presidents keep their roles. A president can open their organization and select **Review applications** or **Edit organization**.
+
+Presidents can use **Edit organization** to change the About heading and description, open or close recruitment, edit requirements, and update the banner color and organization photo. The About page shows the latest event post visible to the viewer. A club-specific assignment script is also available. Review its email and organization name before running it. [Game club president script](supabase/admin/assign_game_club_president.sql)
 
 ### Assign a registration admin
 
-After migration `015`, have the intended admin sign in with their university account at least once. Replace the example email with their sign-in email and run the following in the Supabase SQL Editor.
+Have the intended admin sign in to StageCall with their university Google account at least once. Replace `admin@ubaguio.edu` with their sign-in email and run the assignment in the Supabase SQL Editor. This grants access to the organization registration review queue.
 
 ```sql
 insert into public.stagecall_admins (user_id)
 select id from auth.users where lower(email) = lower('admin@ubaguio.edu')
-on conflict (user_id) do nothing;
+on conflict (user_id) do nothing
+returning user_id;
 ```
 
-If **Admin review** is missing, check that the insert added a row for the exact account under **Authentication → Users**. Running it with the example address adds no row unless that account exists. The app checks access when you open the registration page and checks again while it stays open. To revoke access, delete that account's row from `public.stagecall_admins`.
+If the query returns no rows, the email may be missing from **Authentication → Users** or the user may already be an admin. Verify access under **Directory → Register an organization → Admin review**. To revoke access, delete that account's row from `public.stagecall_admins`.
 
 ## Register a club or organization
 
@@ -120,11 +133,11 @@ The database prevents duplicate applications and closed-recruitment submissions.
 
 ## Data and limitations
 
-StageCall opens the saved public catalog and the signed-in account’s saved profile, preferences, and applications while it syncs with Supabase. With migration 017 applied, refreshes download new or changed rows and remove rows that have been deleted or are no longer visible. Members-only posts and notifications are checked against current access before they are displayed. Recently viewed post images and profile photos are stored on the device subject to available storage. A failed refresh can still show the saved public catalog and the account’s own saved data.
+StageCall opens the saved public catalog and the signed-in account’s saved profile, preferences, and applications while it syncs with Supabase. Refreshes download new or changed rows and remove rows that have been deleted or are no longer visible. Members-only posts and notifications are checked against current access before they are displayed. Recently viewed post images and profile photos are stored on the device subject to available storage. A failed refresh can still show the saved public catalog and the account’s own saved data.
 
-The in-app notification feed refreshes approximately every 10 seconds while the app is open. It includes public posts, members-only posts from organizations the user belongs to, organization profile changes, and changes to application availability. Read status is saved per account. Existing posts are included when migration 014 is applied; earlier organization changes are not backfilled.
+The in-app notification feed refreshes approximately every 10 seconds while the app is open. It includes public posts, members-only posts from organizations the user belongs to, organization profile changes, and changes to application availability. Presidents also see alerts for new membership applications to their organizations. Admins receive alerts for new organization registrations. Registration decisions and any review message appear in the applicant’s notifications. Read status is saved per account. Posts added through the sample seed also trigger notifications.
 
-Catalog data can be edited through the Supabase Table Editor. Clients can read organizations and public posts; RLS restricts members-only posts and denies direct catalog writes. Presidents can attach one JPEG or PNG photo up to 5 MB to a post. Photos are stored in the private `post-images` bucket and use the post's audience for access. Failed post submissions can leave unused uploads that an administrator may need to remove. Organization member counts and device notifications are not connected.
+Catalog data can be edited through the Supabase Table Editor. Clients can read organizations and public posts; RLS restricts members-only posts and denies direct catalog writes. Presidents can attach one JPEG or PNG photo up to 5 MB to a post. Photos are stored in the private `post-images` bucket and use the post's audience for access. Failed post submissions can leave unused uploads that an administrator may need to remove. Organization counts include presidents and update when membership rows change. Notifications are in-app.
 
 ## Project structure
 

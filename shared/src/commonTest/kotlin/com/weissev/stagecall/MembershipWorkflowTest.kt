@@ -36,10 +36,10 @@ class MembershipWorkflowTest {
     }
 
     @Test
-    fun publishingRequiresEventSchedule() {
+    fun publishingAllowsAnEventWithoutDateOrTime() {
         val repo = populatedRepository()
-        assertFalse(repo.publish("1", "Workshop", "Join us", "Events", false, ""))
-        assertTrue(repo.publish("1", "Workshop", "Join us", "Events", false, "Nov 20, IT Lab"))
+        assertTrue(repo.publish("1", "Workshop", "Join us", "Events", false, ""))
         assertEquals("Workshop", repo.posts.first().title)
+        assertEquals("", repo.posts.first().schedule)
     }
 }

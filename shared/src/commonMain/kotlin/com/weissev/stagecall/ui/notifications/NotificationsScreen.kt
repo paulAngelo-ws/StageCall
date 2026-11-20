@@ -60,7 +60,9 @@ internal fun NotificationsPage(
             value = Clock.System.now()
         }
     }
-    val notifications = store.notifications.filter { n -> repository.organizations.any { it.id == n.organizationId } }
+    val notifications = store.notifications.filter { notification ->
+        notification.registrationId != null || repository.organizations.any { it.id == notification.organizationId }
+    }
     // NotificationStore.kt supplies visible notifications and read status. Opening a row sends the notification to App.kt.
     // Apply the unread filter after finding notifications for known organizations.
     val visibleNotifications = if (unreadOnly) notifications.filter { !it.isRead } else notifications
@@ -110,7 +112,7 @@ internal fun NotificationsPage(
                         Text(
                             when {
                                 unreadOnly -> "You have no unread updates."
-                                else -> "Public posts and organization updates appear here, along with members-only posts from your organizations."
+                                else -> "Organization updates, posts, and registration alerts appear here."
                             },
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -121,12 +123,10 @@ internal fun NotificationsPage(
             }
         }
         items(visibleNotifications, key = { it.id }) { notification ->
-            val organization = repository.organization(notification.organizationId)
+            val organization = repository.organizations.firstOrNull { it.id == notification.organizationId }
             StageCallCard(
                 Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium)
                     .clickable(role = Role.Button, onClickLabel = "Open ${notification.title}") {
-                        // Send the read receipt to NotificationStore.kt and open the notification through App.kt.
-                        scope.launch { store.markRead(notification.id) } // NotificationStore.kt saves the read receipt for this ID.
                         onOpenNotification(notification)
                     },
             ) {
@@ -135,9 +135,9 @@ internal fun NotificationsPage(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.Top,
                 ) {
-                    OrganizationThumbnail()
+                    OrganizationThumbnail(organization?.photoPath)
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(organization.name, style = MaterialTheme.typography.titleSmall)
+                        Text(organization?.name ?: "Organization registrations", style = MaterialTheme.typography.titleSmall)
                         Text(
                             notification.title,
                             style = MaterialTheme.typography.bodyMedium,

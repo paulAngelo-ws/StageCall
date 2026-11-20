@@ -91,7 +91,7 @@ internal class ApplicationStore(
         submitting = true
         try {
             val profile = repository.profile // Take the applicant’s name and email from StageCallRepository.kt.
-            // ApplyScreen.kt sends the form here. Migration 202611180004_membership_applications.sql defines the table and 202611180009_application_length_limits.sql checks text lengths.
+            // ApplyScreen.kt sends the form here. The database validates the application fields and checks recruitment access.
             val row = client.from("membership_applications").insert(ApplicationInsert(
                 organizationId, profile.name, profile.email, studentNumber.trim(), year, reason.trim(),
             )) { select() }.decodeSingle<ApplicationRow>() // Ask Supabase to return the inserted row with its assigned ID.
