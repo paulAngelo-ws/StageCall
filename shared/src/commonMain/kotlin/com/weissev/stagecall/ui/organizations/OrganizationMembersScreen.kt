@@ -276,6 +276,7 @@ private fun MemberProfile(
             details == null -> Text("This member is no longer in the organization.")
             else -> {
                 Text(details.email?.takeIf { it.isNotBlank() } ?: "Email unavailable")
+                Text("Year level: ${details.yearLevel ?: "Not set"}")
                 if (member.userId != viewerId) {
                     StageCallCard(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

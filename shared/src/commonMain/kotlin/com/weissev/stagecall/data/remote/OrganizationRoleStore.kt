@@ -46,6 +46,7 @@ internal data class OrganizationMemberProfile(
 internal data class OrganizationMemberDetails(
     val email: String?,
     @SerialName("shared_organizations") val sharedOrganizations: List<String>,
+    @SerialName("year_level") val yearLevel: String? = null,
 )
 
 @Serializable

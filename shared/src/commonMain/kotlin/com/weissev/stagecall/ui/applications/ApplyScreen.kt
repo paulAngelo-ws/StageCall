@@ -5,8 +5,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,16 +17,25 @@ import com.weissev.stagecall.data.StageCallRepository
 import com.weissev.stagecall.data.remote.APPLICATION_REASON_LIMIT
 import com.weissev.stagecall.data.remote.ApplicationStore
 import com.weissev.stagecall.data.remote.STUDENT_ID_LIMIT
+import com.weissev.stagecall.ui.components.YearLevelDropdown
 import com.weissev.stagecall.ui.components.StageCallCard
 import com.weissev.stagecall.ui.components.organizationCardColors
 import kotlinx.coroutines.launch
 
 @Composable
-internal fun ApplyPage(repository: StageCallRepository, id: String, store: ApplicationStore, onSubmitted: (Int) -> Unit) {
+internal fun ApplyPage(
+    repository: StageCallRepository,
+    id: String,
+    store: ApplicationStore,
+    defaultStudentNumber: String,
+    defaultYearLevel: String,
+    onSubmitted: (Int) -> Unit,
+) {
     val scope = rememberCoroutineScope()
-    var studentNumber by remember(id) { mutableStateOf("") }
-    var year by remember(id) { mutableStateOf("2nd Year") }
-    var yearMenu by remember(id) { mutableStateOf(false) }
+    var editedStudentNumber by remember(id) { mutableStateOf<String?>(null) }
+    val studentNumber = editedStudentNumber ?: defaultStudentNumber
+    var selectedYear by remember(id) { mutableStateOf<String?>(null) }
+    val year = selectedYear ?: defaultYearLevel
     var reason by remember(id) { mutableStateOf("") }
     var consent by remember(id) { mutableStateOf(false) }
     var error by remember(id) { mutableStateOf("") }
@@ -62,24 +69,17 @@ internal fun ApplyPage(repository: StageCallRepository, id: String, store: Appli
                 Text("Your details", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 OutlinedTextField(
                     value = studentNumber,
-                    onValueChange = { studentNumber = it.take(STUDENT_ID_LIMIT); error = "" },
+                    onValueChange = { editedStudentNumber = it.take(STUDENT_ID_LIMIT); error = "" },
                     modifier = Modifier.fillMaxWidth(), enabled = !store.submitting,
                     label = { RequiredLabel("Student ID") }, supportingText = { Text("${studentNumber.length}/$STUDENT_ID_LIMIT") },
                     singleLine = true,
                 )
-                Box(Modifier.fillMaxWidth()) {
-                    OutlinedButton(onClick = { yearMenu = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp), enabled = !store.submitting) {
-                        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                            RequiredLabel("Year level: $year")
-                        }
-                        Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
-                    }
-                    DropdownMenu(expanded = yearMenu, onDismissRequest = { yearMenu = false }) {
-                        listOf("1st Year", "2nd Year", "3rd Year", "4th Year").forEach { option ->
-                            DropdownMenuItem(text = { Text(option) }, onClick = { year = option; yearMenu = false })
-                        }
-                    }
-                }
+                YearLevelDropdown(
+                    year = year,
+                    enabled = !store.submitting,
+                    onSelected = { selectedYear = it },
+                    label = { RequiredLabel("Year level: $year") },
+                )
             }
         }
         StageCallCard(Modifier.fillMaxWidth()) {

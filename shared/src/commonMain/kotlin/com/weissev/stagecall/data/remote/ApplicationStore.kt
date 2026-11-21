@@ -18,7 +18,7 @@ import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlin.time.Instant
 
-internal const val STUDENT_ID_LIMIT = 50
+internal const val STUDENT_ID_LIMIT = 8
 internal const val APPLICATION_REASON_LIMIT = 1000
 
 @Serializable

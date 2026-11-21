@@ -40,7 +40,7 @@ For iOS, open `iosApp` in Xcode.
 
 ## Set up Supabase
 
-1. In a new Supabase project, run `supabase/migrations/202611200001_stagecall_schema.sql` in the SQL Editor.
+1. In a new Supabase project, run the SQL files in `supabase/migrations/` in filename order in the SQL Editor.
 2. To load the sample catalog, run `supabase/seed.sql`. It adds five organizations and three posts. Each organization starts with zero recorded members.
 3. Copy the entries from `local.properties.example` to the root `local.properties`, keeping any existing `sdk.dir` entry:
 
@@ -64,6 +64,8 @@ For existing installs, run `supabase/upgrades/202611200003_member_profile_detail
 For existing installs, run `supabase/upgrades/202611200004_registration_notifications.sql` to enable registration alerts for admins and private decision alerts for applicants.
 
 For existing installs, run `supabase/upgrades/202611200005_organization_photos.sql` to add organization photos and remove the obsolete deadline column and its saved values.
+
+After the member profile details upgrade, apply `supabase/migrations/202611210001_profile_application_defaults.sql` to enable saved Student IDs and year levels.
 
 For existing installs, run `supabase/upgrades/202611200006_leave_organization.sql` to enable leaving an organization from its member list.
 

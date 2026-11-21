@@ -15,9 +15,20 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.jsonObject
 
+internal const val DEFAULT_YEAR_LEVEL = "1st Year"
+internal val yearLevels = listOf(DEFAULT_YEAR_LEVEL, "2nd Year", "3rd Year", "4th Year")
+
+internal fun defaultStudentNumber(email: String) = email.substringBefore('@').take(STUDENT_ID_LIMIT)
+
 @Serializable
-private data class ProfileRow(@SerialName("user_id") val userId: String, val bio: String,
-    @SerialName("dark_theme") val darkTheme: Boolean = false, val bookmarks: List<String> = emptyList())
+private data class ProfileRow(
+    @SerialName("user_id") val userId: String,
+    val bio: String,
+    @SerialName("dark_theme") val darkTheme: Boolean = false,
+    val bookmarks: List<String> = emptyList(),
+    @SerialName("student_number") val studentNumber: String = "",
+    @SerialName("year_level") val yearLevel: String? = null,
+)
 
 @Serializable
 private data class ProfileUpdate(
@@ -25,6 +36,8 @@ private data class ProfileUpdate(
     @SerialName("p_bio") val bio: String? = null,
     @SerialName("p_dark_theme") val darkTheme: Boolean? = null,
     @SerialName("p_bookmarks") val bookmarks: List<String>? = null,
+    @SerialName("p_student_number") val studentNumber: String? = null,
+    @SerialName("p_year_level") val yearLevel: String? = null,
 )
 
 internal class ProfileStore(
@@ -41,6 +54,10 @@ internal class ProfileStore(
     var darkTheme by mutableStateOf(initialProfile?.darkTheme ?: false) // Use the saved preference or light mode if there is none.
         private set
     var bookmarks by mutableStateOf(initialProfile?.bookmarks?.distinct().orEmpty()) // Drop duplicate saved IDs before App.kt updates the directory.
+        private set
+    var studentNumber by mutableStateOf(initialProfile?.studentNumber.orEmpty())
+        private set
+    var yearLevel by mutableStateOf(initialProfile?.yearLevel ?: DEFAULT_YEAR_LEVEL)
         private set
     var loaded by mutableStateOf(cached != null) // A saved empty profile still counts as a successful load.
         private set
@@ -64,6 +81,8 @@ internal class ProfileStore(
             bio = row?.bio.orEmpty()
             darkTheme = row?.darkTheme ?: false
             bookmarks = row?.bookmarks?.distinct().orEmpty()
+            studentNumber = row?.studentNumber.orEmpty()
+            yearLevel = row?.yearLevel ?: DEFAULT_YEAR_LEVEL
             loaded = true
             error = null
         } catch (e: CancellationException) { throw e } catch (e: Exception) {
@@ -73,20 +92,25 @@ internal class ProfileStore(
 
     // Save acknowledged changes through CollectionCache.kt. The profile update function checks the caller before saving changes.
     private suspend fun saveCachedProfile() {
-        cache.saveLocal(userId, cacheJson.encodeToJsonElement(ProfileRow(userId, bio, darkTheme, bookmarks)).jsonObject)
+        val row = ProfileRow(userId, bio, darkTheme, bookmarks, studentNumber, yearLevel)
+        cache.saveLocal(userId, cacheJson.encodeToJsonElement(row).jsonObject)
     }
 
-    suspend fun save(value: String): Boolean = lock.withLock {
+    suspend fun save(bio: String, studentNumber: String, yearLevel: String): Boolean = lock.withLock {
         saving = true
         try {
-            val trimmed = value.trim() // Remove extra spaces before sending the bio to Supabase.
-            client.postgrest.rpc("update_own_profile", Json.encodeToJsonElement(ProfileUpdate(userId, bio = trimmed)).jsonObject)
-            bio = trimmed // Publish the text to ProfileScreen.kt after Supabase accepts it.
+            val trimmedBio = bio.trim()
+            val trimmedStudentNumber = studentNumber.trim()
+            val update = ProfileUpdate(userId, bio = trimmedBio, studentNumber = trimmedStudentNumber, yearLevel = yearLevel)
+            client.postgrest.rpc("update_own_profile", Json.encodeToJsonElement(update).jsonObject)
+            this.bio = trimmedBio
+            this.studentNumber = trimmedStudentNumber
+            this.yearLevel = yearLevel
             saveCachedProfile()
             error = null
             true
         } catch (e: CancellationException) { throw e } catch (e: Exception) {
-            error = "Could not save your bio. Check your connection and try again."
+            error = "Could not save your profile. Check your connection and try again."
             false
         } finally { saving = false }
     }

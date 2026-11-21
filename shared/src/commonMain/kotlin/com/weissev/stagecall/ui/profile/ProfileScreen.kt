@@ -31,6 +31,9 @@ import androidx.compose.ui.unit.sp
 import com.weissev.stagecall.data.ApplicationStatus
 import com.weissev.stagecall.data.StageCallRepository
 import com.weissev.stagecall.data.remote.ProfileStore
+import com.weissev.stagecall.data.remote.STUDENT_ID_LIMIT
+import com.weissev.stagecall.data.remote.defaultStudentNumber
+import com.weissev.stagecall.ui.components.YearLevelDropdown
 import com.weissev.stagecall.data.remote.LocalMediaCache
 import com.weissev.stagecall.ui.components.ImageLightbox
 import com.weissev.stagecall.ui.components.OrganizationThumbnail
@@ -53,9 +56,10 @@ internal fun ProfilePage(
     onOpenDirectory: () -> Unit,
     onOpenApplications: () -> Unit,
 ) {
-    // Keep the draft bio in memory while the edit dialog is open.
     var editing by remember { mutableStateOf(false) }
     var bio by remember { mutableStateOf("") }
+    var studentNumber by remember { mutableStateOf("") }
+    var yearLevel by remember { mutableStateOf(profileStore.yearLevel) }
     var viewingPicture by remember(accountPicture) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     // Give MediaCache.kt the Google photo URL from App.kt. Show its saved photo while the host checks for a newer one.
@@ -122,7 +126,12 @@ internal fun ProfilePage(
             }
             Button(
                 enabled = profileStore.loaded,
-                onClick = { bio = profileStore.bio.ifBlank { "" }; editing = true },
+                onClick = {
+                    bio = profileStore.bio
+                    studentNumber = profileStore.studentNumber
+                    yearLevel = profileStore.yearLevel
+                    editing = true
+                },
                 modifier = Modifier.widthIn(max = 360.dp).fillMaxWidth().height(36.dp),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
             ) {
@@ -225,7 +234,6 @@ internal fun ProfilePage(
             ) { Text("Sign out") }
         }
     }
-    // Keep the dialog open until the bio saves successfully or the user cancels.
     if (editing) {
         val whitespaceOnly = bio.isNotEmpty() && bio.isBlank()
         AlertDialog(
@@ -239,14 +247,30 @@ internal fun ProfilePage(
                             Text(if (whitespaceOnly) "Enter text or clear the bio." else "${bio.length}/500")
                         },
                         isError = whitespaceOnly,
+                        enabled = !profileStore.saving,
                         minLines = 3,
+                    )
+                    OutlinedTextField(
+                        value = studentNumber,
+                        onValueChange = { studentNumber = it.take(STUDENT_ID_LIMIT) },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !profileStore.saving,
+                        label = { Text("Student ID") },
+                        placeholder = { Text(defaultStudentNumber(accountEmail)) },
+                        supportingText = { Text("Leave blank to use the ID from your email.") },
+                        singleLine = true,
+                    )
+                    YearLevelDropdown(
+                        year = yearLevel,
+                        enabled = !profileStore.saving,
+                        onSelected = { yearLevel = it },
                     )
                     profileStore.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 }
             },
             confirmButton = {
                 TextButton(enabled = !profileStore.saving && !whitespaceOnly, onClick = {
-                    scope.launch { if (profileStore.save(bio)) { editing = false; onSaved() } }
+                    scope.launch { if (profileStore.save(bio, studentNumber, yearLevel)) { editing = false; onSaved() } }
                 }) { Text(if (profileStore.saving) "Saving..." else "Save") }
             },
             dismissButton = { TextButton(enabled = !profileStore.saving, onClick = { editing = false }) { Text("Cancel") } },

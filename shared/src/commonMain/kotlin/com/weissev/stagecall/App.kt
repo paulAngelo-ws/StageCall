@@ -27,6 +27,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -49,6 +50,7 @@ import com.weissev.stagecall.data.remote.OrganizationRegistrationStore
 import com.weissev.stagecall.data.remote.OrganizationRoleStore
 import com.weissev.stagecall.data.remote.ProfileStore
 import com.weissev.stagecall.data.remote.cacheProjectKey
+import com.weissev.stagecall.data.remote.defaultStudentNumber
 import com.weissev.stagecall.data.remote.rememberCollectionCache
 import com.weissev.stagecall.data.remote.SupabaseStateStore
 import com.weissev.stagecall.ui.applications.ApplicationHistoryPage
@@ -100,17 +102,20 @@ private enum class Screen {
     OrganizationRegistrationReview,
 }
 
-private data class NotificationOrigin(
+private data class Route(
     val page: Screen = Screen.Main,
+    val tab: Int = 0,
     val organizationId: String = "",
-    val postId: Int? = null,
+    val organizationPostId: Int? = null,
+    val editingPostId: Int? = null,
+    val memberId: String? = null,
     val applicationId: Int = 0,
     val registrationId: Int = 0,
 )
 
 /** One shared entry point for Android, iOS, desktop and web. */
 @Composable
-fun App() {
+fun App(systemBackHandler: @Composable (onBack: () -> Unit) -> Unit = {}) {
     // AuthSession.kt owns the Supabase client. LoginScreen.kt gets the sign-in callback and any error to display.
     val client = AuthSession.client
     if (client == null) {
@@ -171,7 +176,7 @@ fun App() {
         val storage = rememberCacheStorage()
         val media = remember(client, storage) { MediaCache(client, userId, storage) }
         CompositionLocalProvider(LocalMediaCache provides media) {
-            SignedInApp(client, userId, accountEmail, accountName, accountPicture)
+            SignedInApp(client, userId, accountEmail, accountName, accountPicture, systemBackHandler)
         }
     }
 }
@@ -183,6 +188,7 @@ private fun SignedInApp(
     accountEmail: String,
     accountName: String,
     accountPicture: String,
+    systemBackHandler: @Composable (onBack: () -> Unit) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     // ProfileStore.kt exposes saved preferences first, then checks for changes using CollectionCache.kt.
@@ -285,14 +291,12 @@ private fun SignedInApp(
             kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { remote.close() }
         }
     }
-    var selectedTab by remember { mutableStateOf(0) }
-    var page by remember { mutableStateOf(Screen.Main) }
-    var organizationId by remember { mutableStateOf("") }
+    val backStack = remember { mutableStateListOf(Route()) }
+    val route = backStack.last()
+    val page = route.page
+    val organizationId = route.organizationId
+    val editingPostId = route.editingPostId
     val publishingPost = page == Screen.CreateOrganizationPost && roleStore.creatingPost
-    var selectedMemberId by remember { mutableStateOf<String?>(null) }
-    var editingPostId by remember { mutableStateOf<Int?>(null) }
-    var organizationPostId by remember { mutableStateOf<Int?>(null) }
-    var registrationId by remember(userId) { mutableStateOf(0) }
     val registrationPageOpen = page == Screen.OrganizationRegistration || page == Screen.OrganizationRegistrationDetails
     val registrationReviewOpen = page == Screen.OrganizationRegistrationReview
     LaunchedEffect(registrationStore, registrationPageOpen, registrationReviewOpen) {
@@ -303,44 +307,22 @@ private fun SignedInApp(
             }
         }
     }
-    var applicationId by remember { mutableStateOf(0) }
     var dialog by remember { mutableStateOf<String?>(null) }
-    var notificationOrigin by remember { mutableStateOf(NotificationOrigin()) }
-    var notificationDetailOpen by remember { mutableStateOf(false) }
-    fun openOrganization(id: String) {
-        organizationId = id
-        organizationPostId = null
-        page = Screen.Organization
+    fun navigate(destination: Route) {
+        if (destination != backStack.last()) backStack.add(destination)
     }
 
-    // Keep the original route so Back can reopen it after viewing notifications.
-    fun goBack() {
-        if (page == Screen.Notifications) {
-            organizationId = notificationOrigin.organizationId
-            organizationPostId = notificationOrigin.postId
-            applicationId = notificationOrigin.applicationId
-            registrationId = notificationOrigin.registrationId
-            page = notificationOrigin.page
-            notificationDetailOpen = false
-            return
-        }
-        if (notificationDetailOpen &&
-            (page == Screen.Organization || page == Screen.Status || page == Screen.ReviewApplications ||
-                page == Screen.OrganizationRegistrationDetails || page == Screen.OrganizationRegistrationReview)
-        ) {
-            page = Screen.Notifications
-            notificationDetailOpen = false
-            return
-        }
-        page =
-            when (page) {
-                Screen.Apply, Screen.EditOrganization, Screen.CreateOrganizationPost,
-                Screen.ReviewApplications, Screen.OrganizationMembers -> Screen.Organization
-                Screen.OrganizationMemberProfile -> Screen.OrganizationMembers
-                Screen.OrganizationRegistrationDetails, Screen.OrganizationRegistrationReview -> Screen.OrganizationRegistration
-                else -> Screen.Main
-            }
+    fun openTab(tab: Int) = navigate(Route(tab = tab))
+
+    fun openOrganization(id: String, postId: Int? = null) {
+        navigate(Route(Screen.Organization, tab = route.tab, organizationId = id, organizationPostId = postId))
     }
+
+    fun goBack() {
+        if (!publishingPost && backStack.size > 1) backStack.removeAt(backStack.lastIndex)
+    }
+
+    systemBackHandler { goBack() }
 
     StageCallTheme(darkTheme = darkTheme) {
         preferenceError?.let { error ->
@@ -359,17 +341,11 @@ private fun SignedInApp(
                                 unreadCount = notificationStore.unreadCount,
                                 onSearchClick = {
                                     if (publishingPost) return@TopHeader
-                                    selectedTab = 1
-                                    page = Screen.Main
-                                    notificationDetailOpen = false
+                                    openTab(1)
                                 },
                             ) {
                                 if (publishingPost) return@TopHeader
-                                if (page != Screen.Notifications && !notificationDetailOpen) {
-                                    notificationOrigin = NotificationOrigin(page, organizationId, organizationPostId, applicationId, registrationId)
-                                }
-                                notificationDetailOpen = false
-                                page = Screen.Notifications
+                                navigate(Route(Screen.Notifications, tab = route.tab))
                             }
                             HorizontalDivider()
                             if (persistence.hasData && persistence.refreshFailed) {
@@ -378,7 +354,7 @@ private fun SignedInApp(
                                     TextButton(onClick = persistence::retry, enabled = !persistence.loading) { Text(if (persistence.loading) "Retrying…" else "Retry") }
                                 }
                             }
-                            if (page != Screen.Main) {
+                            if (backStack.size > 1) {
                                 TextButton(
                                     onClick = { goBack() },
                                     enabled = !publishingPost,
@@ -397,11 +373,9 @@ private fun SignedInApp(
                     bottomBar = {
                         Column {
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                            NavigationBar(if (page == Screen.ReviewApplications) 1 else selectedTab) {
+                            NavigationBar(if (page == Screen.ReviewApplications) 1 else route.tab) {
                                 if (publishingPost) return@NavigationBar
-                                selectedTab = it
-                                page = Screen.Main
-                                notificationDetailOpen = false
+                                openTab(it)
                             }
                         }
                     },
@@ -424,20 +398,15 @@ private fun SignedInApp(
                                     if (!notification.isRead) {
                                         scope.launch { notificationStore.markRead(notification.id) }
                                     }
-                                    notificationDetailOpen = true
                                     if (notification.type == NotificationType.RegistrationReview) {
-                                        page = Screen.OrganizationRegistrationReview
+                                        navigate(route.copy(page = Screen.OrganizationRegistrationReview))
                                     } else if (notification.type == NotificationType.RegistrationDecision && notification.registrationId != null) {
-                                        registrationId = notification.registrationId
-                                        page = Screen.OrganizationRegistrationDetails
+                                        navigate(route.copy(page = Screen.OrganizationRegistrationDetails, registrationId = notification.registrationId))
                                     } else if (notification.type == NotificationType.ApplicationReview) {
-                                        organizationId = notification.organizationId
-                                        organizationPostId = null
-                                        page = Screen.ReviewApplications
+                                        navigate(route.copy(page = Screen.ReviewApplications, organizationId = notification.organizationId))
                                         scope.launch { roleStore.refreshRoles() }
                                     } else if (notification.applicationId != null) { // Choose the application details route when the notification has an application ID.
-                                        applicationId = notification.applicationId // Keep the ID for ApplicationStatusScreen.kt.
-                                        page = Screen.Status
+                                        navigate(route.copy(page = Screen.Status, applicationId = notification.applicationId))
                                     } else {
                                         scope.launch {
                                             if (notification.postId != null) {
@@ -445,37 +414,34 @@ private fun SignedInApp(
                                                 catch (e: kotlinx.coroutines.CancellationException) { throw e }
                                                 catch (_: Exception) { persistence.retry() }
                                             }
-                                            organizationId = notification.organizationId // Keep the ID for OrganizationScreen.kt.
-                                            organizationPostId = notification.postId // Tell OrganizationScreen.kt which post to focus on.
-                                            page = Screen.Organization
+                                            if (backStack.last() === route) {
+                                                openOrganization(notification.organizationId, notification.postId)
+                                            }
                                         }
                                     }
                                 },
                                 onOpenDirectory = {
-                                    selectedTab = 1
-                                    page = Screen.Main
-                                    notificationDetailOpen = false
+                                    openTab(1)
                                 },
                             )
                             Screen.OrganizationRegistration -> OrganizationRegistrationPage(
                                 store = registrationStore,
                                 onSubmitted = { showSuccess("Organization registration submitted") },
                                 onOpenAdminReview = {
-                                    if (registrationStore.isAdmin) page = Screen.OrganizationRegistrationReview
+                                    if (registrationStore.isAdmin) navigate(route.copy(page = Screen.OrganizationRegistrationReview))
                                 },
                                 onOpenRegistration = { id ->
-                                    registrationId = id
-                                    page = Screen.OrganizationRegistrationDetails
+                                    navigate(route.copy(page = Screen.OrganizationRegistrationDetails, registrationId = id))
                                 },
                             )
                             Screen.OrganizationRegistrationDetails -> OrganizationRegistrationDetailsPage(
-                                registration = registrationStore.own.firstOrNull { it.id == registrationId },
+                                registration = registrationStore.own.firstOrNull { it.id == route.registrationId },
                                 onOpenOrganization = { id ->
                                     try {
                                         if (repository.organizations.none { it.id == id }) persistence.synchronize()
                                         roleStore.refreshRoles()
                                         if (roleStore.loaded && repository.organizations.any { it.id == id }) {
-                                            openOrganization(id)
+                                            if (backStack.last() === route) openOrganization(id)
                                             true
                                         } else false
                                     } catch (e: kotlinx.coroutines.CancellationException) {
@@ -504,29 +470,27 @@ private fun SignedInApp(
                                 OrganizationPage(
                                     repository = repository,
                                     onCreatePost = {
-                                        editingPostId = null
                                         roleStore.clearPostError()
-                                        page = Screen.CreateOrganizationPost
+                                        navigate(route.copy(page = Screen.CreateOrganizationPost, editingPostId = null))
                                     },
                                     onEditPost = { postId ->
-                                        editingPostId = postId
                                         roleStore.clearPostError()
-                                        page = Screen.CreateOrganizationPost
+                                        navigate(route.copy(page = Screen.CreateOrganizationPost, editingPostId = postId))
                                     },
                                     onEdit = {
                                         roleStore.clearSettingsError()
-                                        page = Screen.EditOrganization
+                                        navigate(route.copy(page = Screen.EditOrganization))
                                     },
                                     applicationsReady = applicationStore.loaded,
                                     rolesReady = roleStore.loaded,
                                     roleError = roleStore.error,
                                     isPresident = roleStore.roles[organizationId] == "President",
                                     onRetryRoles = { scope.launch { roleStore.refreshRoles() } },
-                                    onReview = { page = Screen.ReviewApplications },
-                                    onOpenMembers = { page = Screen.OrganizationMembers },
+                                    onReview = { navigate(route.copy(page = Screen.ReviewApplications)) },
+                                    onOpenMembers = { navigate(route.copy(page = Screen.OrganizationMembers)) },
                                     id = organizationId,
-                                    initialPostId = organizationPostId,
-                                    onApply = { page = Screen.Apply },
+                                    initialPostId = route.organizationPostId,
+                                    onApply = { navigate(route.copy(page = Screen.Apply)) },
                                 )
                             Screen.CreateOrganizationPost -> {
                                 val organization = repository.organizations.firstOrNull { it.id == organizationId }
@@ -543,10 +507,13 @@ private fun SignedInApp(
                                         organization = organization,
                                         store = roleStore,
                                         post = post,
-                                        onCancel = { page = Screen.Organization },
+                                        onCancel = { goBack() },
                                         onPublished = { postId ->
-                                            organizationPostId = postId
-                                            page = Screen.Organization
+                                            if (backStack.last() === route) {
+                                                backStack.removeAt(backStack.lastIndex)
+                                                val organizationRoute = backStack.last()
+                                                backStack[backStack.lastIndex] = organizationRoute.copy(organizationPostId = postId)
+                                            }
                                             showSuccess(if (post == null) "Post published" else "Post updated")
                                         },
                                     )
@@ -561,9 +528,9 @@ private fun SignedInApp(
                                     else -> EditOrganizationPage(
                                         organization = organization,
                                         store = roleStore,
-                                        onCancel = { page = Screen.Organization },
+                                        onCancel = { goBack() },
                                         onSaved = {
-                                            page = Screen.Organization
+                                            if (backStack.last() === route) goBack()
                                             showSuccess("Organization settings saved")
                                         },
                                     )
@@ -573,12 +540,11 @@ private fun SignedInApp(
                                 OrganizationMembersPage(
                                     organizationId = organizationId,
                                     organizationName = repository.organizations.firstOrNull { it.id == organizationId }?.name.orEmpty(),
-                                    selectedMemberId = selectedMemberId.takeIf { page == Screen.OrganizationMemberProfile },
+                                    selectedMemberId = route.memberId.takeIf { page == Screen.OrganizationMemberProfile },
                                     viewerId = userId,
                                     store = roleStore,
                                     onOpenMember = {
-                                        selectedMemberId = it
-                                        page = Screen.OrganizationMemberProfile
+                                        navigate(route.copy(page = Screen.OrganizationMemberProfile, memberId = it))
                                     },
                                     onMembershipChanged = {
                                         scope.launch { runCatching { persistence.synchronize() } }
@@ -603,43 +569,40 @@ private fun SignedInApp(
                                     repository = repository,
                                     id = organizationId,
                                     store = applicationStore,
+                                    defaultStudentNumber = profileStore.studentNumber.ifBlank {
+                                        defaultStudentNumber(accountEmail)
+                                    },
+                                    defaultYearLevel = profileStore.yearLevel,
                                     onSubmitted = { id ->
-                                        applicationId = id
+                                        if (backStack.last() === route) {
+                                            backStack[backStack.lastIndex] = Route(Screen.Status, tab = 2, applicationId = id)
+                                        }
                                         showSuccess("Application submitted")
-                                        selectedTab = 2
-                                        notificationDetailOpen = false
-                                        page = Screen.Status
                                     },
                                 )
                             Screen.ApplicationHistory -> ApplicationHistoryPage(
                                 repository = repository,
                                 onOpenApplication = { id ->
-                                    applicationId = id
-                                    page = Screen.Status
+                                    navigate(route.copy(page = Screen.Status, applicationId = id))
                                 },
                                 onOpenDirectory = {
-                                    selectedTab = 1
-                                    page = Screen.Main
+                                    openTab(1)
                                 },
                                 onOpenOrganization = { id -> openOrganization(id) },
                             )
                             // Send the selected application ID to ApplicationStatusScreen.kt so it can read the current record.
-                            Screen.Status -> ApplicationPage(repository = repository, id = applicationId)
+                            Screen.Status -> ApplicationPage(repository = repository, id = route.applicationId)
                             Screen.Main ->
-                                when (selectedTab) {
+                                when (route.tab) {
                                     0 -> FeedPage(
                                         repository = repository,
                                         onOpenOrganization = { id -> openOrganization(id) },
-                                        onOpenPost = { id, postId ->
-                                            organizationId = id
-                                            organizationPostId = postId
-                                            page = Screen.Organization
-                                        },
+                                        onOpenPost = { id, postId -> openOrganization(id, postId) },
                                     )
                                     1 ->
                                         DirectoryPage(
                                             repository = repository,
-                                            onRegisterOrganization = { page = Screen.OrganizationRegistration },
+                                            onRegisterOrganization = { navigate(route.copy(page = Screen.OrganizationRegistration)) },
                                             onOpenOrganization = { id -> openOrganization(id) },
                                         )
                                     2 ->
@@ -656,12 +619,11 @@ private fun SignedInApp(
                                             repository = repository,
                                             refreshError = applicationStore.error,
                                             onRetry = { scope.launch { applicationStore.refresh() } },
-                                            onOpenHistory = { page = Screen.ApplicationHistory },
+                                            onOpenHistory = { navigate(route.copy(page = Screen.ApplicationHistory)) },
                                             onOpenApplication = { id ->
-                                                applicationId = id
-                                                page = Screen.Status
+                                                navigate(route.copy(page = Screen.Status, applicationId = id))
                                             },
-                                            onOpenDirectory = { selectedTab = 1 },
+                                            onOpenDirectory = { openTab(1) },
                                             onOpenOrganization = { id -> openOrganization(id) },
                                         )
                                     3 ->
@@ -682,8 +644,8 @@ private fun SignedInApp(
                                                 }
                                             },
                                             onOpenOrganization = { id -> openOrganization(id) },
-                                            onOpenDirectory = { selectedTab = 1 },
-                                            onOpenApplications = { selectedTab = 2 },
+                                            onOpenDirectory = { openTab(1) },
+                                            onOpenApplications = { openTab(2) },
                                         )
                                 }
                         }
