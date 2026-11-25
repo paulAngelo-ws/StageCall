@@ -262,6 +262,12 @@ internal class OrganizationRoleStore(
         refreshRoles()
     }
 
+    suspend fun reassignPresident(organizationId: String, userId: String) {
+        client.postgrest.rpc("reassign_organization_president", Json.encodeToJsonElement(
+            OrganizationMemberParameter(organizationId, userId),
+        ).jsonObject)
+        refreshRoles()
+    }
     suspend fun removeMember(organizationId: String, userId: String) {
         client.postgrest.rpc("remove_organization_member", Json.encodeToJsonElement(
             OrganizationMemberParameter(organizationId, userId),

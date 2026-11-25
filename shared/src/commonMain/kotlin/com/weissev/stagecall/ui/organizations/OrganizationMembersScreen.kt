@@ -40,6 +40,7 @@ internal fun OrganizationMembersPage(
     selectedMemberId: String?,
     viewerId: String,
     store: OrganizationRoleStore,
+    isAdmin: Boolean,
     onOpenMember: (String) -> Unit,
     onMembershipChanged: () -> Unit,
 ) {
@@ -53,9 +54,14 @@ internal fun OrganizationMembersPage(
     var confirmingLeave by remember(organizationId) { mutableStateOf(false) }
     var leaving by remember(organizationId) { mutableStateOf(false) }
     var leaveError by remember(organizationId) { mutableStateOf(false) }
+    var successor by remember(organizationId) { mutableStateOf<OrganizationMemberProfile?>(null) }
+    var transferring by remember(organizationId) { mutableStateOf(false) }
+    var transferError by remember(organizationId) { mutableStateOf(false) }
     val listState = key(organizationId) { rememberLazyListState() }
     val scope = rememberCoroutineScope()
     val isPresident = store.loaded && store.roles[organizationId] == "President"
+
+    val canReassign = isAdmin || isPresident
 
     LaunchedEffect(store, organizationId, refresh) {
         loading = true
@@ -127,6 +133,12 @@ internal fun OrganizationMembersPage(
                                 }
                                 Icon(Icons.Outlined.ChevronRight, contentDescription = null)
                             }
+                            if (canReassign && member.role == "Member") {
+                                TextButton(enabled = !transferring, onClick = {
+                                    transferError = false
+                                    successor = member
+                                }) { Text("Make president") }
+                            }
                             if (isPresident && member.role == "Member") {
                                 IconButton(onClick = {
                                     removalError = false
@@ -143,6 +155,47 @@ internal fun OrganizationMembersPage(
                     }
                 }
             }
+        }
+    }
+
+    successor?.let { member ->
+        if (canReassign || transferring) {
+            AlertDialog(
+                onDismissRequest = { if (!transferring) successor = null },
+                title = { Text("Make ${member.name} president?") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("${member.name} will become president of $organizationName. The current president will become a regular member and lose president access.")
+                        if (transferError) Text(
+                            "Could not reassign the president. Check your connection, your access, and that this person is still a member, then retry.",
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(enabled = canReassign && !transferring, onClick = {
+                        transferring = true
+                        transferError = false
+                        scope.launch {
+                            try {
+                                store.reassignPresident(organizationId, member.userId)
+                                successor = null
+                                refresh++
+                                onMembershipChanged()
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (_: Exception) {
+                                transferError = true
+                            } finally {
+                                transferring = false
+                            }
+                        }
+                    }) { Text(if (transferring) "Reassigning..." else "Make president") }
+                },
+                dismissButton = {
+                    TextButton(enabled = !transferring, onClick = { successor = null }) { Text("Cancel") }
+                },
+            )
         }
     }
 

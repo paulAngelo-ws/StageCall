@@ -623,6 +623,7 @@ private fun SignedInApp(
                                     selectedMemberId = route.memberId.takeIf { page == Screen.OrganizationMemberProfile },
                                     viewerId = userId,
                                     store = roleStore,
+                                    isAdmin = registrationStore.isAdmin,
                                     onOpenMember = {
                                         navigate(route.copy(page = Screen.OrganizationMemberProfile, memberId = it))
                                     },
