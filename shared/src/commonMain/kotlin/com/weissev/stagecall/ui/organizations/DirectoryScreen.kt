@@ -49,6 +49,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.weissev.stagecall.data.StageCallRepository
 import com.weissev.stagecall.ui.components.StageCallCard
+import com.weissev.stagecall.ui.components.OrganizationCardBackground
+import androidx.compose.ui.graphics.Color
+import com.weissev.stagecall.ui.components.OrganizationThumbnail
 import com.weissev.stagecall.ui.components.organizationCardColors
 
 // repository contains the data shared by all screens.
@@ -171,6 +174,8 @@ fun DirectoryPage(
         }
         if (results.isEmpty()) Text("No matching organizations. Try a different search.")
         for (org in results) {
+            val hasBanner = !org.bannerPath.isNullOrBlank()
+            val organizationContentColor = if (hasBanner) Color.White else cardContentColor
             // Cycle through the accent colors using the organization’s position in the full directory.
             val (_, barColor) = organizationCardColors[
                 repository.organizations.indexOf(org) % organizationCardColors.size
@@ -187,16 +192,17 @@ fun DirectoryPage(
                     ),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surface,
-                    contentColor = cardContentColor,
+                    contentColor = organizationContentColor,
                 ),
             ) {
+                OrganizationCardBackground(org.bannerPath, if (hasBanner) barColor else MaterialTheme.colorScheme.surface) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 140.dp)
                         .drawBehind {
                             // Draw a 6 dp wide bar down the left side of the card.
-                            drawRect(barColor, size = Size(6.dp.toPx(), size.height)) // Change 6.dp for the width. size.height makes the strip full-height.
+                            if (!hasBanner) drawRect(barColor, size = Size(6.dp.toPx(), size.height))
                         }
                         .padding(start = 16.dp, top = 12.dp, end = 4.dp, bottom = 16.dp),
                     verticalArrangement = Arrangement.SpaceBetween,
@@ -205,12 +211,15 @@ fun DirectoryPage(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.Top,
                     ) {
+                        Box(Modifier.padding(top = 8.dp, end = 12.dp)) {
+                            OrganizationThumbnail(org.photoPath)
+                        }
                         Text(
                             org.name,
                             modifier = Modifier.weight(1f).padding(top = 8.dp),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
-                            color = cardContentColor,
+                            color = organizationContentColor,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -222,7 +231,7 @@ fun DirectoryPage(
                             Icon(
                                 imageVector = if (bookmarked) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
                                 contentDescription = if (bookmarked) "Remove bookmark for ${org.name}" else "Bookmark ${org.name}",
-                                tint = cardContentColor,
+                                tint = organizationContentColor,
                             )
                         }
                     }
@@ -230,10 +239,11 @@ fun DirectoryPage(
                         "${org.category} - ${if (org.isRecruiting) "Recruiting" else "Closed"}",
                         modifier = Modifier.padding(top = 16.dp, end = 12.dp),
                         style = MaterialTheme.typography.labelMedium,
-                        color = cardContentColor,
+                        color = organizationContentColor,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
+                }
                 }
             }
         }

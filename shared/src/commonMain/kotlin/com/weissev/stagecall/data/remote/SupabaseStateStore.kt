@@ -53,11 +53,12 @@ internal data class OrganizationRow(
     @SerialName("next_activity_schedule") val nextActivitySchedule: String,
     @SerialName("banner_color") val bannerColor: String = "blue",
     @SerialName("photo_path") val photoPath: String? = null,
+    @SerialName("banner_path") val bannerPath: String? = null,
 ) {
     // Map database column names to the organization model in Models.kt.
     fun toOrganization() = Organization(
         id, name, category, description, shortTagline, aboutHeadline, fullDescription,
-        memberCount, isRecruiting, requirements, nextActivityTitle, nextActivitySchedule, bannerColor, photoPath,
+        memberCount, isRecruiting, requirements, nextActivityTitle, nextActivitySchedule, bannerColor, photoPath, bannerPath,
     )
 }
 

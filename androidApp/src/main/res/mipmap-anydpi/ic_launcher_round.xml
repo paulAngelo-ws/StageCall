@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Mask geometry: AndroidX Icons.Filled.TheaterComedy, Copyright 2024 The Android Open Source Project. Licensed under Apache-2.0: https://www.apache.org/licenses/LICENSE-2.0 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp" android:height="48dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#EDF4FF" android:pathData="M12,0 A12,12 0,1 1,12,24 A12,12 0,1 1,12,0 Z" />
+    <group android:scaleX="0.8" android:scaleY="0.8" android:translateX="2.4" android:translateY="2.4">
+        <path android:fillColor="#165DCC" android:pathData="M2.0,16.5 C2.0,19.54,4.46,22.0,7.5,22.0 s5.5,-2.46,5.5,-5.5 V10.0 H2.0 V16.5 Z M7.5,18.5 C6.12,18.5,5.0,17.83,5.0,17.0 h5.0 C10.0,17.83,8.88,18.5,7.5,18.5 Z M10.0,13.0 c0.55,0.0,1.0,0.45,1.0,1.0 c0.0,0.55,-0.45,1.0,-1.0,1.0 s-1.0,-0.45,-1.0,-1.0 C9.0,13.45,9.45,13.0,10.0,13.0 Z M5.0,13.0 c0.55,0.0,1.0,0.45,1.0,1.0 c0.0,0.55,-0.45,1.0,-1.0,1.0 s-1.0,-0.45,-1.0,-1.0 C4.0,13.45,4.45,13.0,5.0,13.0 Z" />
+        <path android:fillColor="#165DCC" android:pathData="M11.0,3.0 v6.0 h3.0 v2.5 c0.0,-0.83,1.12,-1.5,2.5,-1.5 c1.38,0.0,2.5,0.67,2.5,1.5 h-5.0 V14.0 v0.39 c0.75,0.38,1.6,0.61,2.5,0.61 c3.04,0.0,5.5,-2.46,5.5,-5.5 V3.0 H11.0 Z M14.0,8.08 c-0.55,0.0,-1.0,-0.45,-1.0,-1.0 c0.0,-0.55,0.45,-1.0,1.0,-1.0 s1.0,0.45,1.0,1.0 C15.0,7.64,14.55,8.08,14.0,8.08 Z M19.0,8.08 c-0.55,0.0,-1.0,-0.45,-1.0,-1.0 c0.0,-0.55,0.45,-1.0,1.0,-1.0 s1.0,0.45,1.0,1.0 C20.0,7.64,19.55,8.08,19.0,8.08 Z" />
+    </group>
+</vector>

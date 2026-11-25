@@ -40,43 +40,17 @@ internal fun EditOrganizationPage(
     var recruiting by remember(organization.id) { mutableStateOf(organization.isRecruiting) }
     var color by remember(organization.id) { mutableStateOf(organization.bannerColor) }
     val scope = rememberCoroutineScope()
-    var photo by remember(organization.id) { mutableStateOf<UploadPhoto?>(null) }
-    var removedPhoto by remember(organization.id) { mutableStateOf(false) }
-    var photoError by remember(organization.id) { mutableStateOf<String?>(null) }
-    var loadingPhoto by remember(organization.id) { mutableStateOf(false) }
-    val enabled = !store.savingSettings && !loadingPhoto
-    val existingPhoto = organization.photoPath.takeUnless { removedPhoto }
-    val picker = rememberUploadPhotoPicker(
-        onLoading = { loadingPhoto = it },
-        onError = { photoError = it },
-        onSelected = { photo = it; removedPhoto = false },
-    )
-
+    val profileImage = remember(organization.id) { OrganizationImageSelection() }
+    val bannerImage = remember(organization.id) { OrganizationImageSelection() }
+    val enabled = !store.savingSettings && !profileImage.loading && !bannerImage.loading
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text("Edit organization", style = MaterialTheme.typography.headlineSmall)
         Text(organization.name, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text("Organization photo", style = MaterialTheme.typography.titleSmall)
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OrganizationThumbnail(existingPhoto, size = 72.dp, preview = photo?.preview)
-            Column {
-                OutlinedButton(enabled = enabled, onClick = { picker.launch() }) {
-                    Text(if (existingPhoto == null && photo == null) "Add photo" else "Change photo")
-                }
-                if (existingPhoto != null || photo != null) {
-                    TextButton(enabled = enabled, onClick = {
-                        photo = null
-                        removedPhoto = true
-                        photoError = null
-                    }) { Text("Remove photo") }
-                }
-            }
-        }
-        Text("JPEG or PNG · up to 5 MB", style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
-        photoError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        OrganizationImageEditor("Profile photo", organization.photoPath, profileImage, enabled)
+        OrganizationImageEditor("Banner image", organization.bannerPath, bannerImage, enabled, banner = true)
         OutlinedTextField(headline, { if (it.length <= 120) headline = it }, Modifier.fillMaxWidth(),
             label = { Text("About heading") }, singleLine = true, enabled = enabled)
         OutlinedTextField(description, { if (it.length <= 5000) description = it }, Modifier.fillMaxWidth(),
@@ -112,9 +86,10 @@ internal fun EditOrganizationPage(
             Button(enabled = enabled && headline.isNotBlank() && description.isNotBlank(), onClick = {
                 scope.launch {
                     val requirementList = requirements.lineSequence().map(String::trim).filter(String::isNotEmpty).toList()
-                    val attachment = photo
+                    val attachment = profileImage.photo
                     if (store.saveSettings(organization.id, headline, description, recruiting, color,
-                            requirementList, attachment?.bytes, attachment?.contentType, removedPhoto)
+                            requirementList, attachment?.bytes, attachment?.contentType, profileImage.removed,
+                            bannerImage.photo?.bytes, bannerImage.photo?.contentType, bannerImage.removed)
                     ) {
                         onSaved()
                     }

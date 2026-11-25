@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.AdminPanelSettings
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.LightMode
@@ -55,6 +56,8 @@ internal fun ProfilePage(
     onOpenOrganization: (String) -> Unit,
     onOpenDirectory: () -> Unit,
     onOpenApplications: () -> Unit,
+    isAdmin: Boolean = false,
+    onOpenAdminPanel: () -> Unit = {},
 ) {
     var editing by remember { mutableStateOf(false) }
     var bio by remember { mutableStateOf("") }
@@ -226,6 +229,24 @@ internal fun ProfilePage(
                         )
                     }
                     Switch(checked = darkTheme, onCheckedChange = null) // The row handles taps while the switch shows the current state.
+                }
+            }
+            if (isAdmin) {
+                StageCallCard(Modifier.fillMaxWidth()) {
+                    Row(
+                        Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onOpenAdminPanel)
+                            .heightIn(min = 64.dp).padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Icon(Icons.Outlined.AdminPanelSettings, null, tint = MaterialTheme.colorScheme.primary)
+                        Column(Modifier.weight(1f)) {
+                            Text("Admin panel", style = MaterialTheme.typography.bodyMedium)
+                            Text("Applications and organizations", style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Icon(Icons.Outlined.ChevronRight, null)
+                    }
                 }
             }
             OutlinedButton(

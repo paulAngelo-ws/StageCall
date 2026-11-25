@@ -227,6 +227,29 @@ class RepositoryPersistenceTest {
     }
 
     @Test
+    fun deletedOrganizationRemovesStalePersonalReferences() = runTest {
+        val repository = StageCallRepository()
+        val remote = Remote()
+        val persistence = RepositoryPersistence(repository, Cache(), remote)
+        persistence.synchronize()
+        val user = Student("Student", "student@s.ubaguio.edu", "user-id")
+        repository.setAccount(user)
+        repository.setApplications(listOf(MembershipApplication(42, "1", user, "2nd Year", "Join")))
+        repository.setMemberships(listOf(Member("1", user, "Member")))
+        repository.posts.add(repository.posts.first { it.organizationId == "1" }.copy(id = 999, membersOnly = true))
+        remote.state = remote.state.copy(
+            organizations = remote.state.organizations.filter { it.id != "1" },
+            posts = remote.state.posts.filter { it.organizationId != "1" },
+        )
+        persistence.synchronize()
+        assertTrue(repository.organizations.none { it.id == "1" })
+        assertTrue(repository.applications.isEmpty())
+        assertTrue(repository.members.isEmpty())
+        assertTrue(repository.posts.none { it.organizationId == "1" })
+        assertEquals(user, repository.profile)
+    }
+
+    @Test
     fun malformedCacheDoesNotCrashStartup() {
         val repository = StageCallRepository()
         RepositoryPersistence(repository, Cache().apply { value = "broken json" }, null)

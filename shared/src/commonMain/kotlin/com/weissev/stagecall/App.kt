@@ -59,6 +59,8 @@ import com.weissev.stagecall.ui.applications.ApplicationsPage
 import com.weissev.stagecall.ui.applications.ApplyPage
 import com.weissev.stagecall.ui.applications.OrganizationRegistrationDetailsPage
 import com.weissev.stagecall.ui.applications.ReviewApplicationsPage
+import io.github.jan.supabase.auth.exception.AuthRestException
+import io.github.jan.supabase.auth.exception.AuthErrorCode
 import com.weissev.stagecall.ui.auth.LoginScreen
 import com.weissev.stagecall.ui.auth.UniversityAccountRequiredScreen
 import com.weissev.stagecall.ui.components.NavigationBar
@@ -73,6 +75,9 @@ import com.weissev.stagecall.ui.organizations.CreateOrganizationPostPage
 import com.weissev.stagecall.ui.organizations.EditOrganizationPage
 import com.weissev.stagecall.ui.organizations.OrganizationPage
 import com.weissev.stagecall.ui.profile.ProfilePage
+import com.weissev.stagecall.ui.organizations.AdminPanelPage
+import com.weissev.stagecall.ui.organizations.AdminOrganizationEditorPage
+import com.weissev.stagecall.data.remote.AdminOrganizationStore
 import com.weissev.stagecall.ui.registrations.OrganizationRegistrationPage
 import com.weissev.stagecall.ui.registrations.OrganizationRegistrationReviewPage
 import com.weissev.stagecall.ui.theme.StageCallTheme
@@ -100,6 +105,8 @@ private enum class Screen {
     OrganizationRegistration,
     OrganizationRegistrationDetails,
     OrganizationRegistrationReview,
+    AdminPanel,
+    AdminEditOrganization,
 }
 
 private data class Route(
@@ -126,6 +133,7 @@ fun App(systemBackHandler: @Composable (onBack: () -> Unit) -> Unit = {}) {
     val scope = rememberCoroutineScope()
     var authError by remember { mutableStateOf<String?>(null) }
     var signingIn by remember { mutableStateOf(false) }
+    var authMessage by remember { mutableStateOf<String?>(null) }
     when (status) {
         is SessionStatus.Initializing -> {
             StageCallLoadingScreen("Restoring your session…") // StageCallLoadingScreen.kt displays this while sign-in state is being restored.
@@ -134,7 +142,34 @@ fun App(systemBackHandler: @Composable (onBack: () -> Unit) -> Unit = {}) {
         is SessionStatus.Authenticated -> Unit
         else -> {
             StageCallTheme {
-                LoginScreen(authError, !signingIn, signingIn) {
+                LoginScreen(authError, !signingIn, signingIn, message = authMessage, onEmailSubmit = { email, password, registering ->
+                    scope.launch {
+                        authError = null
+                        authMessage = null
+                        signingIn = true
+                        try {
+                            AuthSession.authenticateWithEmail(email, password, registering)
+                            if (registering && client.auth.currentSessionOrNull() == null) {
+                                authMessage = "Check your email to confirm your account, then log in."
+                            }
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            val code = (e as? AuthRestException)?.errorCode
+                            authError = when (code) {
+                                AuthErrorCode.InvalidCredentials,
+                                AuthErrorCode.UserNotFound,
+                                AuthErrorCode.EmailAddressInvalid -> "Invalid login credentials"
+                                AuthErrorCode.EmailNotConfirmed -> "Please confirm your email before logging in."
+                                AuthErrorCode.OverRequestRateLimit -> "Too many attempts. Please try again later."
+                                else -> if (registering) "Could not create your account. Please try again."
+                                    else "Could not log in. Please try again."
+                            }
+                        } finally {
+                            signingIn = false
+                        }
+                    }
+                }) {
                     scope.launch {
                         authError = null
                         signingIn = true
@@ -263,6 +298,7 @@ private fun SignedInApp(
         OrganizationRoleStore(client, repository, memberships, memberPosts)
     }
     val registrationStore = remember(client, userId, registrations) { OrganizationRegistrationStore(client, userId, registrations) }
+    val adminStore = remember(client, userId) { AdminOrganizationStore(client) }
     val notificationStore = remember(client, notifications) { NotificationStore(client, notifications) }
     // The app starts background refreshes here. Each store publishes its results to the screens that read it.
     LaunchedEffect(notificationStore) {
@@ -296,9 +332,9 @@ private fun SignedInApp(
     val page = route.page
     val organizationId = route.organizationId
     val editingPostId = route.editingPostId
-    val publishingPost = page == Screen.CreateOrganizationPost && roleStore.creatingPost
-    val registrationPageOpen = page == Screen.OrganizationRegistration || page == Screen.OrganizationRegistrationDetails
-    val registrationReviewOpen = page == Screen.OrganizationRegistrationReview
+    val navigationLocked = (page == Screen.CreateOrganizationPost && roleStore.creatingPost) || (page == Screen.AdminEditOrganization && adminStore.working)
+    val registrationPageOpen = page == Screen.OrganizationRegistration || page == Screen.OrganizationRegistrationDetails || (page == Screen.Main && route.tab == 3)
+    val registrationReviewOpen = page == Screen.OrganizationRegistrationReview || page == Screen.AdminPanel || page == Screen.AdminEditOrganization
     LaunchedEffect(registrationStore, registrationPageOpen, registrationReviewOpen) {
         if (registrationPageOpen || registrationReviewOpen) {
             while (true) {
@@ -319,7 +355,7 @@ private fun SignedInApp(
     }
 
     fun goBack() {
-        if (!publishingPost && backStack.size > 1) backStack.removeAt(backStack.lastIndex)
+        if (!navigationLocked && backStack.size > 1) backStack.removeAt(backStack.lastIndex)
     }
 
     systemBackHandler { goBack() }
@@ -340,11 +376,11 @@ private fun SignedInApp(
                             TopHeader(
                                 unreadCount = notificationStore.unreadCount,
                                 onSearchClick = {
-                                    if (publishingPost) return@TopHeader
+                                    if (navigationLocked) return@TopHeader
                                     openTab(1)
                                 },
                             ) {
-                                if (publishingPost) return@TopHeader
+                                if (navigationLocked) return@TopHeader
                                 navigate(Route(Screen.Notifications, tab = route.tab))
                             }
                             HorizontalDivider()
@@ -354,10 +390,10 @@ private fun SignedInApp(
                                     TextButton(onClick = persistence::retry, enabled = !persistence.loading) { Text(if (persistence.loading) "Retrying…" else "Retry") }
                                 }
                             }
-                            if (backStack.size > 1) {
+                            if (page != Screen.Main && page != Screen.AdminPanel && backStack.size > 1) {
                                 TextButton(
                                     onClick = { goBack() },
-                                    enabled = !publishingPost,
+                                    enabled = !navigationLocked,
                                     modifier = Modifier.padding(start = 12.dp, top = 4.dp),
                                 ) {
                                     Icon(
@@ -374,7 +410,7 @@ private fun SignedInApp(
                         Column {
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                             NavigationBar(if (page == Screen.ReviewApplications) 1 else route.tab) {
-                                if (publishingPost) return@NavigationBar
+                                if (navigationLocked) return@NavigationBar
                                 openTab(it)
                             }
                         }
@@ -389,6 +425,8 @@ private fun SignedInApp(
                                     StatusPanel(persistence.status, isError = true, actionLabel = "Retry connection", onAction = persistence::retry)
                                 }
                             }
+                        } else if (organizationId.isNotEmpty() && repository.organizations.none { it.id == organizationId }) {
+                            Text("This organization is no longer available.", Modifier.padding(24.dp))
                         } else when (page) {
                             // NotificationsScreen.kt reports the selected notification here. Its IDs lead to OrganizationScreen.kt or ApplicationStatusScreen.kt.
                             Screen.Notifications -> NotificationsPage(
@@ -451,6 +489,48 @@ private fun SignedInApp(
                                     }
                                 },
                             )
+                            Screen.AdminPanel -> {
+                                if (registrationStore.isAdmin) {
+                                    AdminPanelPage(
+                                        store = adminStore,
+                                        registrations = registrationStore,
+                                        onOpenOrganization = { id -> openOrganization(id) },
+                                        onEditOrganization = { id ->
+                                            navigate(route.copy(page = Screen.AdminEditOrganization, organizationId = id.orEmpty()))
+                                        },
+                                        onCatalogChanged = {
+                                            persistence.retry()
+                                            scope.launch { roleStore.refreshRoles(); applicationStore.refresh() }
+                                            showSuccess("Organization catalog updated")
+                                        },
+                                        onDecisionSaved = { approved ->
+                                            if (approved) { persistence.retry(); scope.launch { adminStore.refresh() } }
+                                            showSuccess(if (approved) "Organization approved" else "Registration rejected")
+                                        },
+                                    )
+                                } else {
+                                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                        StatusPanel(registrationStore.accessError ?: "Administrator access required.")
+                                    }
+                                }
+                            }
+                            Screen.AdminEditOrganization -> {
+                                val organization = adminStore.organizations.firstOrNull { it.id == organizationId }
+                                when {
+                                    !registrationStore.isAdmin -> Text("Administrator access required.", Modifier.padding(24.dp))
+                                    organizationId.isNotEmpty() && organization == null -> Text("This organization is no longer available.", Modifier.padding(24.dp))
+                                    else -> AdminOrganizationEditorPage(
+                                        organization = organization,
+                                        store = adminStore,
+                                        onCancel = { goBack() },
+                                        onSaved = {
+                                            persistence.retry()
+                                            if (backStack.last() === route) goBack()
+                                            showSuccess("Organization saved")
+                                        },
+                                    )
+                                }
+                            }
                             Screen.OrganizationRegistrationReview -> {
                                 if (registrationStore.isAdmin) {
                                     OrganizationRegistrationReviewPage(
@@ -628,6 +708,8 @@ private fun SignedInApp(
                                         )
                                     3 ->
                                         ProfilePage(
+                                            isAdmin = registrationStore.isAdmin,
+                                            onOpenAdminPanel = { navigate(route.copy(page = Screen.AdminPanel)) },
                                             repository = repository,
                                             accountEmail = accountEmail,
                                             accountName = accountName,

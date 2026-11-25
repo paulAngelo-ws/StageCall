@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import com.weissev.stagecall.data.CampusPost
 import com.weissev.stagecall.data.StageCallRepository
 import com.weissev.stagecall.ui.components.OrganizationThumbnail
+import com.weissev.stagecall.ui.components.OrganizationCardBackground
 import com.weissev.stagecall.ui.components.StageCallCard
 import com.weissev.stagecall.ui.components.organizationCardColors
 import com.weissev.stagecall.ui.feed.PostCard
@@ -89,16 +90,15 @@ internal fun OrganizationPage(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            org.photoPath?.takeIf { it.isNotBlank() }?.let { photoPath ->
-                StageCallCard {
-                    OrganizationThumbnail(photoPath, size = 88.dp, canEnlarge = true)
-                }
+            if (!org.photoPath.isNullOrBlank()) {
+                OrganizationThumbnail(org.photoPath, size = 72.dp, canEnlarge = true)
             }
             StageCallCard(
                 modifier = Modifier.weight(1f).clip(MaterialTheme.shapes.medium)
                     .clickable(role = Role.Button, onClickLabel = "View organization members", onClick = onOpenMembers),
                 colors = CardDefaults.cardColors(containerColor = orgColor, contentColor = Color.White),
             ) {
+                OrganizationCardBackground(org.bannerPath, orgColor) {
                 Column(
                     modifier = Modifier.fillMaxWidth().padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -112,6 +112,7 @@ internal fun OrganizationPage(
                         Text("View members · ${org.memberCount}", Modifier.weight(1f))
                         Icon(Icons.Outlined.ChevronRight, contentDescription = null)
                     }
+                }
                 }
             }
         }

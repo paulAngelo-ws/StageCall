@@ -76,13 +76,14 @@ internal class RepositoryPersistence(
         val cacheSaved = state == savedCatalog || saveCache(state)
         // Catalog refresh must not erase the authenticated user's application state.
         val personal = repository.snapshot() // Take the current application, membership, and profile data from StageCallRepository.kt.
+        val organizationIds = state.organizations.map { it.id }.toSet()
         val merged = state.copy(
-            posts = state.posts + personal.posts.filter { it.membersOnly }, // Keep the members-only posts that OrganizationRoleStore.kt already loaded.
+            posts = state.posts + personal.posts.filter { it.membersOnly && it.organizationId in organizationIds },
             profile = personal.profile,
             bookmarks = bookmarks,
-            applications = personal.applications,
-            members = personal.members,
-            notifications = personal.notifications,
+            applications = personal.applications.filter { it.organizationId in organizationIds },
+            members = personal.members.filter { it.organizationId in organizationIds },
+            notifications = personal.notifications.filter { it.organizationId in organizationIds },
         )
         if (merged != personal) repository.restore(merged) // Update StageCallRepository.kt only when the result differs.
         hasData = true

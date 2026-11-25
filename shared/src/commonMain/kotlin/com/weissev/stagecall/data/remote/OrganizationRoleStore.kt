@@ -73,6 +73,8 @@ private data class SettingsParameter(
     @SerialName("p_requirements") val requirements: List<String>,
     @SerialName("p_photo_path") val photoPath: String?,
     @SerialName("p_remove_photo") val removePhoto: Boolean,
+    @SerialName("p_banner_path") val bannerPath: String?,
+    @SerialName("p_remove_banner") val removeBanner: Boolean,
 )
 
 @Serializable
@@ -181,6 +183,9 @@ internal class OrganizationRoleStore(
         photoBytes: ByteArray?,
         photoType: String?,
         removePhoto: Boolean,
+        bannerBytes: ByteArray? = null,
+        bannerType: String? = null,
+        removeBanner: Boolean = false,
     ): Boolean {
         savingSettings = true
         settingsError = null
@@ -188,13 +193,17 @@ internal class OrganizationRoleStore(
             val photoPath = if (photoBytes != null && photoType != null) {
                 uploadImage("organization-photos", organizationId, photoBytes, photoType)
             } else null
-            client.postgrest.rpc("update_organization_settings", Json.encodeToJsonElement(
-                SettingsParameter(organizationId, headline.trim(), description.trim(), recruiting, color, requirements, photoPath, removePhoto)
+            val bannerPath = if (bannerBytes != null && bannerType != null) {
+                uploadImage("organization-photos", organizationId, bannerBytes, bannerType)
+            } else null
+            client.postgrest.rpc("update_organization_settings_with_images", Json.encodeToJsonElement(
+                SettingsParameter(organizationId, headline.trim(), description.trim(), recruiting, color, requirements, photoPath, removePhoto, bannerPath, removeBanner)
             ).jsonObject)
             val current = repository.organizations.firstOrNull { it.id == organizationId }
             if (current != null) repository.updateOrganization(current.copy(aboutHeadline = headline.trim(),
                 fullDescription = description.trim(), isRecruiting = recruiting, bannerColor = color,
-                requirements = requirements, photoPath = if (removePhoto) null else photoPath ?: current.photoPath))
+                requirements = requirements, photoPath = if (removePhoto) null else photoPath ?: current.photoPath,
+                bannerPath = if (removeBanner) null else bannerPath ?: current.bannerPath))
             true
         } catch (e: CancellationException) { throw e } catch (e: Exception) {
             settingsError = "Could not save settings. Check your connection and president access, then try again."

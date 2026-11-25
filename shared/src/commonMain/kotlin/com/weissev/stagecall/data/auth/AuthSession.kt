@@ -5,6 +5,7 @@ import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.FlowType
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.Google
+import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.storage.Storage
@@ -24,5 +25,13 @@ object AuthSession {
 
     // LoginScreen.kt reports the button tap to App.kt, which starts Google sign-in here.
     suspend fun signIn() { client?.auth?.signInWith(Google) }
+    suspend fun authenticateWithEmail(address: String, password: String, registering: Boolean) {
+        val auth = requireNotNull(client).auth
+        if (registering) {
+            auth.signUpWith(Email) { email = address; this.password = password }
+        } else {
+            auth.signInWith(Email) { email = address; this.password = password }
+        }
+    }
     suspend fun signOut() { client?.auth?.signOut() }
 }

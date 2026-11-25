@@ -98,4 +98,5 @@ data class Organization(
     val nextActivitySchedule: String,
     val bannerColor: String = "blue",
     val photoPath: String? = null,
+    val bannerPath: String? = null,
 )

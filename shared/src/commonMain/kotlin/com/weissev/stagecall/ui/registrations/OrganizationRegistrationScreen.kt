@@ -16,6 +16,7 @@ import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -152,17 +153,25 @@ internal fun OrganizationRegistrationReviewPage(
     var details by remember(store) { mutableStateOf<OrganizationRegistration?>(null) }
     var approve by remember(store) { mutableStateOf(false) }
     var note by remember(store) { mutableStateOf("") }
+    var history by remember { mutableStateOf(false) }
 
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), // Allow scrolling and keep content 24.dp from the page edges.
         verticalArrangement = Arrangement.spacedBy(16.dp), // Gap between items in this column.
     ) {
-        Text("Review organization registrations", style = MaterialTheme.typography.headlineMedium)
+        Text("Organization applications", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+        Text("Review new communities and keep track of your decisions.", style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(selected = !history, onClick = { history = false }, label = { Text("Pending (${store.pending.size})") })
+            FilterChip(selected = history, onClick = { history = true }, label = { Text("History (${store.reviewed.size})") })
+        }
         if (store.working || (!store.queueLoaded && store.queueError == null)) LinearProgressIndicator(Modifier.fillMaxWidth())
         if (review == null) (store.error ?: store.queueError)?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        if (store.queueLoaded && store.pending.isEmpty() && store.queueError == null) Text("No registrations awaiting review.")
+        if (!history && store.queueLoaded && store.pending.isEmpty() && store.queueError == null) Text("You're all caught up. No applications awaiting review.")
+        if (history && store.queueLoaded && store.reviewed.isEmpty() && store.queueError == null) Text("Reviewed applications will appear here.")
         // Show one review card for each registration waiting on an admin decision.
-        store.pending.forEach { registration ->
+        (if (history) emptyList() else store.pending).forEach { registration ->
             ApplicationReviewCard(
                 title = registration.name,
                 metadata = listOf(registration.category, registration.applicantEmail.ifBlank { registration.applicantId }),
@@ -180,6 +189,20 @@ internal fun OrganizationRegistrationReviewPage(
                     review = registration
                 },
             )
+        }
+        if (history && store.reviewed.isNotEmpty()) {
+            store.reviewed.forEach { registration ->
+                ApplicationCard(
+                    title = registration.name,
+                    subtitle = registration.applicantEmail,
+                    barColor = organizationCardColors[registration.id % organizationCardColors.size].second,
+                    status = registration.status,
+                    submittedAt = registration.submittedAt,
+                    updatedAt = registration.reviewedAt,
+                    message = registration.decision.ifBlank { "Registration ${registration.status.name.lowercase()}." },
+                    actionLabel = "View registration",
+                ) { details = registration }
+            }
         }
     }
 

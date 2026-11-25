@@ -70,6 +70,8 @@ internal class OrganizationRegistrationStore(
         private set
     var pending by mutableStateOf<List<OrganizationRegistration>>(emptyList())
         private set
+    var reviewed by mutableStateOf<List<OrganizationRegistration>>(emptyList())
+        private set
     var isAdmin by mutableStateOf(false)
         private set
     var accessError by mutableStateOf<String?>(null)
@@ -97,15 +99,17 @@ internal class OrganizationRegistrationStore(
         if (accessError != null) isAdmin = false // Hide the admin actions if the role check fails.
         if (!isAdmin) { // Clear the review list when admin access is unavailable.
             pending = emptyList()
+            reviewed = emptyList()
             queueLoaded = false
             queueError = null
         }
         if (reviewing) { // Load the review queue only while the admin is viewing it.
             if (isAdmin) {
                 queueError = read("Could not load the review queue. StageCall will retry automatically.") {
-                    pending = client.from("organization_registrations").select {
-                        filter { eq("status", "Pending") }
-                    }.decodeList<OrganizationRegistration>().sortedBy { it.id }
+                    val registrations = client.from("organization_registrations").select()
+                        .decodeList<OrganizationRegistration>()
+                    pending = registrations.filter { it.status == ApplicationStatus.Pending }.sortedBy { it.id }
+                    reviewed = registrations.filter { it.status != ApplicationStatus.Pending }.sortedByDescending { it.id }
                     queueLoaded = true
                 }
             }
@@ -152,6 +156,10 @@ internal class OrganizationRegistrationStore(
             // The admin’s decision goes to the registration review function.
             client.postgrest.rpc("decide_organization_registration",
                 Json.encodeToJsonElement(RegistrationDecision(id, approve, note.trim())).jsonObject)
+            pending.firstOrNull { it.id == id }?.let { registration ->
+                reviewed = listOf(registration.copy(status = if (approve) ApplicationStatus.Accepted else ApplicationStatus.Rejected,
+                    decision = note.trim())) + reviewed.filter { it.id != id }
+            }
             pending = pending.filter { it.id != id }
         }
     }

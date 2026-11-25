@@ -106,6 +106,14 @@ Presidents can use **Edit organization** to change the About heading and descrip
 
 ### Assign a registration admin
 
+For separate organization profile photos and banner images, apply `supabase/migrations/202611250003_organization_banners.sql` after the admin management migration. Presidents use **Edit organization** and admins use the organization editor in **Admin panel** to add, replace, preview, or remove each image independently. Both accept JPEG/PNG up to 5 MB; banners fill the background of the organization name/member-count card and directory cards, with readable text over the image. Without a banner, the original card design is preserved. Images use the private `organization-photos` bucket and the existing device image cache. The migration updates storage read policies and adds permission-checked save functions; old settings functions remain available for older app versions. Rollback-only database checks are in `supabase/tests/organization_banners.sql`.
+
+Admins have an **Admin panel** button below **Profile → Account**. The panel lists organization registrations (including decision history), supports approval/rejection with a message, and lets admins search, view, create, edit, and delete organizations. Apply `supabase/migrations/202611250002_admin_organization_management.sql` in the SQL Editor to enable catalog changes on existing projects. The server checks `stagecall_admins` for every mutation. Organization deletion requires confirmation and permanently removes its posts, memberships, membership applications, and related notifications; registration history remains. Existing activity details are preserved when editing; profile photos and banners have separate image controls. New organizations start without a president; assign one using the president assignment steps above if needed.
+
+Database checks are in `supabase/tests/admin_organization_management.sql`; run them as the database owner after the migration. The script rolls back all fixtures. The application checks can be run with `./gradlew :shared:jvmTest`.
+
+Apply `supabase/migrations/202611250001_employee_email_admins.sql` to existing projects as well as new installs. Verified `@e.ubaguio.edu` accounts automatically receive app admin access, including existing verified accounts. `@s.ubaguio.edu` accounts do not receive this grant. Email registration receives access after confirmation; Google accounts receive it when Supabase records their verified email. Changing an automatically granted account to another email domain removes that grant. Existing manual grants remain intact. This uses the existing `stagecall_admins` permissions and review queue.
+
 Have the intended admin sign in to StageCall with their university Google account at least once. Replace `admin@ubaguio.edu` with their sign-in email and run the assignment in the Supabase SQL Editor. This grants access to the organization registration review queue.
 
 ```sql
