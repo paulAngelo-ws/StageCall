@@ -61,6 +61,8 @@ enum class NotificationType {
     ApplicationReview,
     RegistrationReview,
     RegistrationDecision,
+    OrganizationDeleted,
+    UserUpdate,
     Post,
     Activity,
     Organization,

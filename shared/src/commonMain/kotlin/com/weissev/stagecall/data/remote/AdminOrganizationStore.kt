@@ -110,8 +110,14 @@ internal class AdminOrganizationStore(private val client: SupabaseClient) {
         return path
     }
 
-    suspend fun delete(id: String): Boolean = mutate("Could not delete organization. Check your connection and admin access, then retry.") {
-        client.postgrest.rpc("stagecall_admin_delete_organization", buildJsonObject { put("p_id", id) })
+    suspend fun delete(id: String, note: String): Boolean {
+        if (note.trim().length !in 1..1000) return false
+        return mutate("Could not delete organization. Check your connection and admin access, then retry.") {
+            client.postgrest.rpc("stagecall_admin_delete_organization", buildJsonObject {
+                put("p_id", id)
+                put("p_note", note.trim())
+            })
+        }
     }
 
     private suspend fun mutate(message: String, request: suspend () -> Unit): Boolean {

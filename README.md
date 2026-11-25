@@ -63,6 +63,8 @@ For existing installs, run `supabase/upgrades/202611200003_member_profile_detail
 
 For existing installs, run `supabase/upgrades/202611200004_registration_notifications.sql` to enable registration alerts for admins and private decision alerts for applicants.
 
+Apply `supabase/migrations/202611250004_application_decision_notifications.sql` after the existing migrations to enable private membership acceptance/rejection notifications with decision notes. It also fills in missing admin alerts for pending organization registrations. New registration alerts continue to use the registration trigger. Database privacy checks are in `supabase/tests/application_decision_notifications.sql`.
+
 For existing installs, run `supabase/upgrades/202611200005_organization_photos.sql` to add organization photos and remove the obsolete deadline column and its saved values.
 
 After the member profile details upgrade, apply `supabase/migrations/202611210001_profile_application_defaults.sql` to enable saved Student IDs and year levels.
@@ -170,3 +172,7 @@ The shared tests cover membership workflows, persistence, notifications, theme s
 ```text
 java -jar gradle/wrapper/gradle-wrapper.jar :shared:jvmTest :desktopApp:compileKotlin --no-configuration-cache --no-watch-fs "-Pkotlin.incremental=false"
 ```
+
+Apply migration 202611250005_organization_deletion_notifications.sql after 202611250004 to require admin deletion reasons and notify the original accepted registration applicant. Deletion notices retain the organization name and complete note after removal. Organizations created directly by admins have no recorded registration applicant. Rollback-only checks: supabase/tests/organization_deletion_notifications.sql.
+
+Apply migration 202611250006_user_update_notifications.sql after 202611250005 for submission receipts, membership/role changes, profile/preferences and admin access changes, complete organization edits, post edits/removals, and organization deletion notices for members as well as the original registrant. Shared organization updates are visible to members, bookmark followers, and pending applicants, subject to post visibility. Unchanged saves do not create alerts. New post edits create unread notifications even if the original post notification was read. Database checks: supabase/tests/user_update_notifications.sql.

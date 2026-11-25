@@ -24,6 +24,7 @@ internal fun StatusPanel(
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
 ) {
+    ErrorNotice(message.takeIf { isError })
     Column(
         modifier = modifier.fillMaxWidth().padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,

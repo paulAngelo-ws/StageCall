@@ -286,7 +286,7 @@ internal fun ProfilePage(
                         enabled = !profileStore.saving,
                         onSelected = { yearLevel = it },
                     )
-                    profileStore.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                    profileStore.error?.let { com.weissev.stagecall.ui.components.ErrorNotice(it) }
                 }
             },
             confirmButton = {

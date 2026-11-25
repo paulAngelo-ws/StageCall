@@ -20,7 +20,7 @@ begin
     exception when insufficient_privilege then null;
     end;
     begin
-        perform public.stagecall_admin_delete_organization('missing');
+        perform public.stagecall_admin_delete_organization('missing', 'Test deletion');
         raise exception 'Non-admin delete was allowed';
     exception when insufficient_privilege then null;
     end;
@@ -61,7 +61,7 @@ begin
     exception when insufficient_privilege then null;
     end;
     insert into public.stagecall_admins (user_id) values (v_user);
-    perform public.stagecall_admin_delete_organization(v_id);
+    perform public.stagecall_admin_delete_organization(v_id, 'Test deletion');
     if exists (select 1 from public.organizations where id = v_id)
        or exists (select 1 from public.membership_applications where organization_id = v_id)
        or exists (select 1 from public.organization_memberships where organization_id = v_id)

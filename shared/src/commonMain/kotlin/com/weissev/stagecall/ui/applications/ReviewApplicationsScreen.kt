@@ -177,7 +177,7 @@ internal fun ReviewApplicationsPage(store: OrganizationRoleStore, organizationId
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("${application.student.name} · $organizationName")
                     OutlinedTextField(message, { if (it.length <= 2000) message = it }, label = { Text("Note to applicant (optional)") })
-                    store.reviewError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                    store.reviewError?.let { com.weissev.stagecall.ui.components.ErrorNotice(it) }
                 }
             },
             confirmButton = {

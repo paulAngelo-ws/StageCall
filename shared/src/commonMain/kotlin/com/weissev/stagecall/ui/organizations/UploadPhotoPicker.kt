@@ -28,19 +28,28 @@ internal fun rememberUploadPhotoPicker(
             onLoading(true)
             onError(null)
             try {
-                require((file.getSize() ?: 0L) <= MaxPostImageBytes) { "Choose an image up to 5 MB." }
+                if ((file.getSize() ?: 0L) > MaxPostImageBytes) {
+                    onError("Choose an image up to 5 MB.")
+                    return@launch
+                }
                 val bytes = file.readBytes()
-                require(bytes.size <= MaxPostImageBytes) { "Choose an image up to 5 MB." }
+                if (bytes.size > MaxPostImageBytes) {
+                    onError("Choose an image up to 5 MB.")
+                    return@launch
+                }
                 val contentType = when {
                     bytes.take(JpegSignature.size) == JpegSignature.toList() -> "image/jpeg"
                     bytes.take(PngSignature.size) == PngSignature.toList() -> "image/png"
-                    else -> error("Choose a JPEG or PNG image.")
+                    else -> {
+                        onError("Choose a JPEG or PNG image.")
+                        return@launch
+                    }
                 }
                 onSelected(UploadPhoto(bytes, contentType, bytes.decodeToImageBitmap()))
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                onError(e.message ?: "Could not open this image.")
+                onError("Could not open this image. Choose another JPEG or PNG and try again.")
             } finally {
                 onLoading(false)
             }

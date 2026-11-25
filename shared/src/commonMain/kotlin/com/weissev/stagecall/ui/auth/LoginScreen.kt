@@ -157,7 +157,7 @@ internal fun LoginScreen(error: String?, enabled: Boolean, signingIn: Boolean = 
                 }
                 formError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
-                if (error != null) Text(error, modifier = Modifier.padding(top = 16.dp), color = MaterialTheme.colorScheme.error)
+                com.weissev.stagecall.ui.components.ErrorNotice(error)
             }
         }
     }
@@ -190,7 +190,7 @@ internal fun UniversityAccountRequiredScreen(error: String?, onSignOut: () -> Un
                     shape = RoundedCornerShape(12.dp)) {
                     Text("Sign out and switch account")
                 }
-                error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
+                error?.let { com.weissev.stagecall.ui.components.ErrorNotice(it) }
             }
         }
     }

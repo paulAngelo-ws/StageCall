@@ -36,6 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.weissev.stagecall.data.StageCallNotification
+import com.weissev.stagecall.data.NotificationType
 import com.weissev.stagecall.data.StageCallRepository
 import com.weissev.stagecall.data.remote.NotificationStore
 import com.weissev.stagecall.ui.components.OrganizationThumbnail
@@ -61,7 +62,8 @@ internal fun NotificationsPage(
         }
     }
     val notifications = store.notifications.filter { notification ->
-        notification.registrationId != null || repository.organizations.any { it.id == notification.organizationId }
+        notification.type == NotificationType.OrganizationDeleted || notification.type == NotificationType.UserUpdate ||
+            notification.applicationId != null || notification.registrationId != null || repository.organizations.any { it.id == notification.organizationId }
     }
     // NotificationStore.kt supplies visible notifications and read status. Opening a row sends the notification to App.kt.
     // Apply the unread filter after finding notifications for known organizations.
@@ -90,7 +92,7 @@ internal fun NotificationsPage(
         }
         if (store.error != null) {
             item {
-                Text(store.error.orEmpty(), color = MaterialTheme.colorScheme.error)
+                com.weissev.stagecall.ui.components.ErrorNotice(store.error)
                 TextButton(onClick = { scope.launch { store.refresh() } }) { Text("Retry") }
             }
         }
@@ -112,7 +114,7 @@ internal fun NotificationsPage(
                         Text(
                             when {
                                 unreadOnly -> "You have no unread updates."
-                                else -> "Organization updates, posts, and registration alerts appear here."
+                                else -> "Your account, applications, memberships, and organization updates appear here."
                             },
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -137,7 +139,11 @@ internal fun NotificationsPage(
                 ) {
                     OrganizationThumbnail(organization?.photoPath)
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(organization?.name ?: "Organization registrations", style = MaterialTheme.typography.titleSmall)
+                        Text(organization?.name ?: when (notification.type) {
+                            NotificationType.OrganizationDeleted -> "Organization removed"
+                            NotificationType.UserUpdate -> "Your updates"
+                            else -> "Organization registrations"
+                        }, style = MaterialTheme.typography.titleSmall)
                         Text(
                             notification.title,
                             style = MaterialTheme.typography.bodyMedium,
@@ -147,7 +153,10 @@ internal fun NotificationsPage(
                             notification.message,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 3,
+                            maxLines = if (notification.type == NotificationType.Application ||
+                                notification.type == NotificationType.RegistrationDecision ||
+                                notification.type == NotificationType.OrganizationDeleted ||
+                                notification.type == NotificationType.UserUpdate) Int.MAX_VALUE else 3,
                             overflow = TextOverflow.Ellipsis,
                         )
                         Text(

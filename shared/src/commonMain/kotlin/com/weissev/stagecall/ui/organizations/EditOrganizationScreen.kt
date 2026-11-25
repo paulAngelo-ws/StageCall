@@ -80,7 +80,7 @@ internal fun EditOrganizationPage(
                 }
             }
         }
-        store.settingsError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        store.settingsError?.let { com.weissev.stagecall.ui.components.ErrorNotice(it) }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
             TextButton(enabled = enabled, onClick = onCancel) { Text("Cancel") }
             Button(enabled = enabled && headline.isNotBlank() && description.isNotBlank(), onClick = {

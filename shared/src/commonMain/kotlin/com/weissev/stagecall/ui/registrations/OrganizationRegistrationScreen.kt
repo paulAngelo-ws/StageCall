@@ -92,7 +92,7 @@ internal fun OrganizationRegistrationPage(
             }
         }
         if (store.working || (!store.ownLoaded && store.ownError == null)) LinearProgressIndicator(Modifier.fillMaxWidth())
-        (store.error ?: store.ownError ?: store.accessError)?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        (store.error ?: store.ownError ?: store.accessError)?.let { com.weissev.stagecall.ui.components.ErrorNotice(it) }
         Text("An admin must approve your application before it appears in the directory.")
         RegistrationField("Organization name", draft.name, REGISTRATION_NAME_LIMIT, !store.working) { draft = draft.copy(name = it) }
         RegistrationField("Category", draft.category, REGISTRATION_CATEGORY_LIMIT, !store.working) { draft = draft.copy(category = it) }
@@ -167,7 +167,7 @@ internal fun OrganizationRegistrationReviewPage(
             FilterChip(selected = history, onClick = { history = true }, label = { Text("History (${store.reviewed.size})") })
         }
         if (store.working || (!store.queueLoaded && store.queueError == null)) LinearProgressIndicator(Modifier.fillMaxWidth())
-        if (review == null) (store.error ?: store.queueError)?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        if (review == null) (store.error ?: store.queueError)?.let { com.weissev.stagecall.ui.components.ErrorNotice(it) }
         if (!history && store.queueLoaded && store.pending.isEmpty() && store.queueError == null) Text("You're all caught up. No applications awaiting review.")
         if (history && store.queueLoaded && store.reviewed.isEmpty() && store.queueError == null) Text("Reviewed applications will appear here.")
         // Show one review card for each registration waiting on an admin decision.
@@ -234,7 +234,7 @@ internal fun OrganizationRegistrationReviewPage(
                     RegistrationField("Message to applicant (optional)", note, REGISTRATION_DECISION_LIMIT, !store.working, singleLine = false) {
                         note = it
                     }
-                    store.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                    store.error?.let { com.weissev.stagecall.ui.components.ErrorNotice(it) }
                 }
             },
             dismissButton = { TextButton(onClick = { review = null }, enabled = !store.working) { Text("Cancel") } },

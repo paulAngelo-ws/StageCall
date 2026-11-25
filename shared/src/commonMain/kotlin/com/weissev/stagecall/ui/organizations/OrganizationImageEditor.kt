@@ -47,6 +47,6 @@ internal fun OrganizationImageEditor(
         Text(if (banner) "JPEG or PNG, up to 5 MB. A wide 16:9 image works best."
             else "JPEG or PNG, up to 5 MB. Use a square logo or profile photo.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        selection.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        selection.error?.let { com.weissev.stagecall.ui.components.ErrorNotice(it) }
     }
 }

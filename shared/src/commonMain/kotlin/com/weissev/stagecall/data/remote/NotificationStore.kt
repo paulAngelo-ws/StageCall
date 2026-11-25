@@ -24,6 +24,7 @@ private data class NotificationRow(
     @SerialName("organization_id") val organizationId: String? = null,
     @SerialName("post_id") val postId: Int? = null,
     @SerialName("registration_id") val registrationId: Int? = null,
+    @SerialName("application_id") val applicationId: Int? = null,
     val kind: String,
     val title: String,
     val message: String,
@@ -60,13 +61,17 @@ internal class NotificationStore(private val client: SupabaseClient, private val
                 StageCallNotification(row.id, row.organizationId.orEmpty(),
                     when (row.kind) {
                         "post" -> NotificationType.Post
+                        "post_update" -> NotificationType.Post
                         "application_review" -> NotificationType.ApplicationReview
+                        "application_decision" -> NotificationType.Application
                         "registration_review" -> NotificationType.RegistrationReview
                         "registration_decision" -> NotificationType.RegistrationDecision
+                        "organization_deleted" -> NotificationType.OrganizationDeleted
+                        "user_update" -> NotificationType.UserUpdate
                         else -> NotificationType.Organization
                     },
                     row.title, row.message, postId = row.postId, createdAt = row.createdAt, isRead = row.isRead,
-                    registrationId = row.registrationId)
+                    registrationId = row.registrationId, applicationId = row.applicationId)
             }.sortedWith(compareByDescending<StageCallNotification> { it.createdAt }.thenByDescending { it.id })
             loaded = true
             error = null

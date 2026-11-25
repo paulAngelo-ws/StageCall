@@ -59,7 +59,7 @@ internal fun AdminOrganizationEditorPage(
             label = { Text("Requirements (optional)") }, minLines = 3,
             supportingText = { Text("One per line. Up to 30 items, 200 characters each.") })
         if (!currentDraft.valid) Text("Complete the required fields and keep requirements within the limits.", style = MaterialTheme.typography.bodySmall)
-        store.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        store.error?.let { com.weissev.stagecall.ui.components.ErrorNotice(it) }
         if (store.working) LinearProgressIndicator(Modifier.fillMaxWidth())
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedButton(modifier = Modifier.weight(1f), enabled = enabled, onClick = onCancel) { Text("Cancel") }

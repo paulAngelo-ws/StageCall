@@ -64,7 +64,6 @@ fun DirectoryPage(
     var query by remember { mutableStateOf("") }
     var sort by remember { mutableStateOf("Recommended") }
     var showSorting by remember { mutableStateOf(false) }
-    val cardContentColor = MaterialTheme.colorScheme.onSurface
     // The screen scrolls vertically when its content is taller than the window.
     Column(
         modifier = Modifier
@@ -174,76 +173,11 @@ fun DirectoryPage(
         }
         if (results.isEmpty()) Text("No matching organizations. Try a different search.")
         for (org in results) {
-            val hasBanner = !org.bannerPath.isNullOrBlank()
-            val organizationContentColor = if (hasBanner) Color.White else cardContentColor
-            // Cycle through the accent colors using the organization’s position in the full directory.
-            val (_, barColor) = organizationCardColors[
-                repository.organizations.indexOf(org) % organizationCardColors.size
-            ]
-            StageCallCard(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(MaterialTheme.shapes.medium)
-                    .clickable(
-                        role = Role.Button,
-                        onClickLabel = "Open ${org.name}",
-                        // Send the selected ID to App.kt. It opens OrganizationScreen.kt with that ID.
-                        onClick = { onOpenOrganization(org.id) }, // Send this organization ID to App.kt when the card is tapped.
-                    ),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    contentColor = organizationContentColor,
-                ),
-            ) {
-                OrganizationCardBackground(org.bannerPath, if (hasBanner) barColor else MaterialTheme.colorScheme.surface) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 140.dp)
-                        .drawBehind {
-                            // Draw a 6 dp wide bar down the left side of the card.
-                            if (!hasBanner) drawRect(barColor, size = Size(6.dp.toPx(), size.height))
-                        }
-                        .padding(start = 16.dp, top = 12.dp, end = 4.dp, bottom = 16.dp),
-                    verticalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.Top,
-                    ) {
-                        Box(Modifier.padding(top = 8.dp, end = 12.dp)) {
-                            OrganizationThumbnail(org.photoPath)
-                        }
-                        Text(
-                            org.name,
-                            modifier = Modifier.weight(1f).padding(top = 8.dp),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = organizationContentColor,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        val bookmarked = org.id in repository.bookmarks
-                        IconToggleButton(
-                            checked = bookmarked,
-                            onCheckedChange = { repository.toggleBookmark(org.id) },
-                        ) {
-                            Icon(
-                                imageVector = if (bookmarked) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
-                                contentDescription = if (bookmarked) "Remove bookmark for ${org.name}" else "Bookmark ${org.name}",
-                                tint = organizationContentColor,
-                            )
-                        }
-                    }
-                    Text(
-                        "${org.category} - ${if (org.isRecruiting) "Recruiting" else "Closed"}",
-                        modifier = Modifier.padding(top = 16.dp, end = 12.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = organizationContentColor,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
+            OrganizationDirectoryCard(org, repository.organizations.indexOf(org), { onOpenOrganization(org.id) }) { contentColor ->
+                val bookmarked = org.id in repository.bookmarks
+                IconToggleButton(checked = bookmarked, onCheckedChange = { repository.toggleBookmark(org.id) }) {
+                    Icon(if (bookmarked) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                        contentDescription = if (bookmarked) "Remove bookmark for ${org.name}" else "Bookmark ${org.name}", tint = contentColor)
                 }
             }
         }

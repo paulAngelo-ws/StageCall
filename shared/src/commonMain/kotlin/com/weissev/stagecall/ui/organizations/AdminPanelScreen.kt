@@ -36,7 +36,9 @@ internal fun AdminPanelPage(
     var applications by remember { mutableStateOf(false) }
     var search by remember { mutableStateOf("") }
     var deleting by remember { mutableStateOf<AdminOrganizationRow?>(null) }
+    var deletionNote by remember { mutableStateOf("") }
     LaunchedEffect(store) { store.refresh() }
+    com.weissev.stagecall.ui.components.ErrorNotice(store.error)
 
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(Modifier.widthIn(max = 960.dp).fillMaxSize()) {
@@ -86,11 +88,6 @@ internal fun AdminPanelPage(
                         }
                     }
                     if (store.loading) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
-                    if (deleting == null) store.error?.let { message -> item {
-                        Surface(color = MaterialTheme.colorScheme.errorContainer, shape = RoundedCornerShape(12.dp)) {
-                            Text(message, Modifier.fillMaxWidth().padding(16.dp), color = MaterialTheme.colorScheme.onErrorContainer)
-                        }
-                    } }
                     val results = store.organizations.filter { it.name.contains(search, true) || it.category.contains(search, true) }
                     if (store.loaded && results.isEmpty()) item {
                         Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
@@ -104,51 +101,21 @@ internal fun AdminPanelPage(
                         }
                     }
                     items(results, key = { it.id }) { organization ->
-                        val accent = when (organization.bannerColor) {
-                            "green" -> Color(0xFF27734B)
-                            "purple" -> Color(0xFF7A45B3)
-                            "orange" -> Color(0xFFAF571D)
-                            "indigo" -> Color(0xFF4D54A6)
-                            "gold" -> Color(0xFF8C6B13)
-                            else -> MaterialTheme.colorScheme.primary
-                        }
-                        StageCallCard(Modifier.fillMaxWidth()) {
-                            Column {
-                                Box(Modifier.fillMaxWidth().height(4.dp).background(accent))
-                                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        OrganizationThumbnail(photoPath = organization.photoPath, size = 48.dp)
-                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                            Text(organization.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                                            Text(organization.category, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                        }
-                                    }
-                                    Text(organization.tagline, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        Surface(shape = RoundedCornerShape(8.dp), color = if (organization.recruiting) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest) {
-                                            Text(if (organization.recruiting) "Recruiting" else "Closed", Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                                style = MaterialTheme.typography.labelMedium)
-                                        }
-                                        Icon(Icons.Outlined.Groups, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                        Text("${organization.memberCount} members", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
-                                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        TextButton(onClick = { onOpenOrganization(organization.id) }) { Text("View") }
-                                        FilledTonalButton(enabled = !store.working && !store.loading, onClick = {
-                                            store.clearError()
-                                            onEditOrganization(organization.id)
-                                        }) {
-                                            Icon(Icons.Outlined.Edit, null, Modifier.size(16.dp))
-                                            Text("Edit", Modifier.padding(start = 6.dp))
-                                        }
-                                        Spacer(Modifier.weight(1f))
-                                        IconButton(enabled = !store.working && !store.loading, onClick = { store.clearError(); deleting = organization }) {
-                                            Icon(Icons.Outlined.DeleteOutline, contentDescription = "Delete ${organization.name}", tint = MaterialTheme.colorScheme.error)
-                                        }
-                                    }
-                                }
+                        val org = com.weissev.stagecall.data.Organization(
+                            organization.id, organization.name, organization.category, organization.description,
+                            organization.tagline, organization.headline, organization.fullDescription,
+                            organization.memberCount, organization.recruiting, organization.requirements,
+                            "", "", organization.bannerColor, organization.photoPath, organization.bannerPath)
+                        OrganizationDirectoryCard(org, store.organizations.indexOf(organization), { onOpenOrganization(organization.id) }) { contentColor ->
+                            IconButton(enabled = !store.working && !store.loading, onClick = {
+                                store.clearError(); onEditOrganization(organization.id)
+                            }) {
+                                Icon(Icons.Outlined.Edit, contentDescription = "Edit ${organization.name}", tint = contentColor)
+                            }
+                            IconButton(enabled = !store.working && !store.loading, onClick = {
+                                store.clearError(); deletionNote = ""; deleting = organization
+                            }) {
+                                Icon(Icons.Outlined.DeleteOutline, contentDescription = "Delete ${organization.name}", tint = contentColor)
                             }
                         }
                     }
@@ -161,12 +128,15 @@ internal fun AdminPanelPage(
             title = { Text("Delete ${organization.name}?") },
             text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("This permanently deletes the organization, its posts, memberships, membership applications and related notifications. Registration history is kept. This cannot be undone.")
-                store.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                OutlinedTextField(deletionNote, { if (it.length <= 1000) deletionNote = it },
+                    Modifier.fillMaxWidth(), enabled = !store.working,
+                    label = { Text("Reason / notes (required)") }, minLines = 3,
+                    supportingText = { Text("Sent to the person who registered the organization. ${deletionNote.length}/1000") })
             } },
             dismissButton = { TextButton(enabled = !store.working, onClick = { deleting = null }) { Text("Cancel") } },
-            confirmButton = { TextButton(enabled = !store.working, onClick = {
+            confirmButton = { TextButton(enabled = !store.working && deletionNote.isNotBlank(), onClick = {
                 scope.launch {
-                    if (store.delete(organization.id)) { deleting = null; onCatalogChanged() }
+                    if (store.delete(organization.id, deletionNote)) { deleting = null; onCatalogChanged() }
                 }
             }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text(if (store.working) "Deleting..." else "Delete organization") } },
         )

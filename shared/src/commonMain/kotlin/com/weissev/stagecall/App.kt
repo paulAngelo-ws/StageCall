@@ -126,7 +126,7 @@ fun App(systemBackHandler: @Composable (onBack: () -> Unit) -> Unit = {}) {
     // AuthSession.kt owns the Supabase client. LoginScreen.kt gets the sign-in callback and any error to display.
     val client = AuthSession.client
     if (client == null) {
-        StageCallTheme { LoginScreen("Supabase is not configured. Check local.properties and rebuild.", false) {} }
+        StageCallTheme { LoginScreen("The service is currently unavailable. Please try again later.", false) {} }
         return
     }
     val status by client.auth.sessionStatus.collectAsState() // Let Compose redraw when AuthSession.kt reports a session change.
@@ -173,7 +173,7 @@ fun App(systemBackHandler: @Composable (onBack: () -> Unit) -> Unit = {}) {
                     scope.launch {
                         authError = null
                         signingIn = true
-                        try { AuthSession.signIn() } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { authError = e.message ?: "Could not start Google sign-in. Please try again." }
+                        try { AuthSession.signIn() } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { authError = "Could not start Google sign-in. Please try again." }
                         finally { signingIn = false }
                     }
                 }
@@ -196,7 +196,7 @@ fun App(systemBackHandler: @Composable (onBack: () -> Unit) -> Unit = {}) {
                     } catch (e: kotlinx.coroutines.CancellationException) {
                         throw e
                     } catch (e: Exception) {
-                        authError = e.message ?: "Could not sign out. Please try again."
+                        authError = "Could not sign out. Please try again."
                     }
                 }
             }
@@ -361,10 +361,7 @@ private fun SignedInApp(
     systemBackHandler { goBack() }
 
     StageCallTheme(darkTheme = darkTheme) {
-        preferenceError?.let { error ->
-            AlertDialog(onDismissRequest = { preferenceError = null }, title = { Text("Could not save preference") },
-                text = { Text(error) }, confirmButton = { TextButton(onClick = { preferenceError = null }) { Text("OK") } })
-        }
+        com.weissev.stagecall.ui.components.ErrorNotice(preferenceError) { preferenceError = null }
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surfaceVariant) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
                 Scaffold(
@@ -436,7 +433,9 @@ private fun SignedInApp(
                                     if (!notification.isRead) {
                                         scope.launch { notificationStore.markRead(notification.id) }
                                     }
-                                    if (notification.type == NotificationType.RegistrationReview) {
+                                    if (notification.type == NotificationType.OrganizationDeleted || notification.type == NotificationType.UserUpdate) {
+                                        dialog = notification.title + "\n\n" + notification.message
+                                    } else if (notification.type == NotificationType.RegistrationReview) {
                                         navigate(route.copy(page = Screen.OrganizationRegistrationReview))
                                     } else if (notification.type == NotificationType.RegistrationDecision && notification.registrationId != null) {
                                         navigate(route.copy(page = Screen.OrganizationRegistrationDetails, registrationId = notification.registrationId))
@@ -445,6 +444,7 @@ private fun SignedInApp(
                                         scope.launch { roleStore.refreshRoles() }
                                     } else if (notification.applicationId != null) { // Choose the application details route when the notification has an application ID.
                                         navigate(route.copy(page = Screen.Status, applicationId = notification.applicationId))
+                                        scope.launch { applicationStore.refresh() }
                                     } else {
                                         scope.launch {
                                             if (notification.postId != null) {
@@ -716,7 +716,7 @@ private fun SignedInApp(
                                             accountPicture = accountPicture,
                                             profileStore = profileStore,
                                             onSaved = { showSuccess("Profile saved") },
-                                            onSignOut = { scope.launch { try { AuthSession.signOut() } catch (e: Exception) { dialog = e.message ?: "Could not sign out." } } },
+                                            onSignOut = { scope.launch { try { AuthSession.signOut() } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { snackbarHost.showSnackbar("Could not sign out. Please try again.") } } },
                                             darkTheme = darkTheme,
                                             onDarkThemeChange = { requested ->
                                                 scope.launch {

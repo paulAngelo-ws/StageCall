@@ -96,7 +96,7 @@ internal fun CreateOrganizationPostPage(
             if (photo == null && existingPhoto != null) PostImage(existingPhoto)
             Text("JPEG or PNG · up to 5 MB", style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
-            photoError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            photoError?.let { com.weissev.stagecall.ui.components.ErrorNotice(it) }
 
             Text("Category", style = MaterialTheme.typography.titleSmall)
             Row(Modifier.horizontalScroll(rememberScrollState()).selectableGroup(),
@@ -142,7 +142,7 @@ internal fun CreateOrganizationPostPage(
         }
         HorizontalDivider()
         Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp)) {
-            store.postError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            store.postError?.let { com.weissev.stagecall.ui.components.ErrorNotice(it) }
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
